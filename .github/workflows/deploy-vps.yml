@@ -29,6 +29,7 @@ jobs:
       - name: Build deployment archive
         shell: bash
         run: |
+          ARCHIVE_PATH="${RUNNER_TEMP}/suivi-nutrition-deploy.tar.gz"
           tar \
             --exclude='.git' \
             --exclude='.github' \
@@ -43,13 +44,14 @@ jobs:
             --exclude='data/normalized' \
             --exclude='data/derived' \
             --exclude='site/data/dashboard.json' \
-            -czf deploy.tar.gz .
+            -czf "${ARCHIVE_PATH}" .
+          echo "ARCHIVE_PATH=${ARCHIVE_PATH}" >> "$GITHUB_ENV"
 
       - name: Upload code to the VPS
         shell: bash
         run: |
           ssh ubuntu@51.68.45.129 "mkdir -p /home/ubuntu/GitHub/suivi-nutrition"
-          scp deploy.tar.gz ubuntu@51.68.45.129:/tmp/suivi-nutrition-deploy.tar.gz
+          scp "${ARCHIVE_PATH}" ubuntu@51.68.45.129:/tmp/suivi-nutrition-deploy.tar.gz
           ssh ubuntu@51.68.45.129 "tar -xzf /tmp/suivi-nutrition-deploy.tar.gz -C /home/ubuntu/GitHub/suivi-nutrition && rm -f /tmp/suivi-nutrition-deploy.tar.gz"
 
       - name: Provision and rebuild on the VPS
