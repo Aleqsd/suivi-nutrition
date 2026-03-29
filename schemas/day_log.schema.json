@@ -208,6 +208,38 @@
         }
       }
     },
+    "meal_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "estimated_energy_kcal": {
+          "type": "number",
+          "minimum": 0
+        },
+        "quality_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "estimation_confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
     "meal_item": {
       "type": "object",
       "additionalProperties": false,
@@ -334,6 +366,9 @@
         },
         "notes": {
           "type": "string"
+        },
+        "meal_assessment": {
+          "$ref": "#/$defs/meal_assessment"
         },
         "items": {
           "type": "array",

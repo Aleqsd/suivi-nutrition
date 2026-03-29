@@ -26,6 +26,11 @@ MEALS_FIELDS = [
     "structured_items_count",
     "portion_text_items_count",
     "notes",
+    "estimated_energy_kcal",
+    "quality_score",
+    "estimation_confidence",
+    "recommendations",
+    "assessment_notes",
     "source_type",
     "source_origin",
     "source_record_id",
@@ -172,6 +177,27 @@ def mark_duplicates(rows: list[dict], fields: list[str]) -> list[dict]:
     return rows
 
 
+def parse_quantity(value: object) -> float | None:
+    if value in ("", None):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def sort_meal_items(items: list[dict]) -> list[dict]:
+    indexed_items = list(enumerate(items))
+    indexed_items.sort(
+        key=lambda indexed_item: (
+            parse_quantity(indexed_item[1].get("quantity")) is None,
+            -(parse_quantity(indexed_item[1].get("quantity")) or 0.0),
+            indexed_item[0],
+        )
+    )
+    return [item for _, item in indexed_items]
+
+
 def write_monthly_csvs(dataset: str, fieldnames: list[str], rows: list[dict]) -> None:
     dataset_dir = NORMALIZED_DIR / dataset
     dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -222,6 +248,8 @@ def main() -> int:
 
         for meal_index, meal in enumerate(document.get("meals", []), start=1):
             meal_id = f"{date_value}-meal-{meal_index:02d}"
+            assessment = meal.get("meal_assessment", {})
+            sorted_items = sort_meal_items(meal.get("items", []))
             meals.append(
                 {
                     "date": date_value,
@@ -235,10 +263,15 @@ def main() -> int:
                     "location": meal.get("location", ""),
                     "context": meal.get("context", ""),
                     "source_text": meal.get("source_text", ""),
-                    "items_count": len(meal.get("items", [])),
-                    "structured_items_count": sum(1 for item in meal.get("items", []) if item.get("quantity") not in ("", None)),
-                    "portion_text_items_count": sum(1 for item in meal.get("items", []) if item.get("portion_text", "")),
+                    "items_count": len(sorted_items),
+                    "structured_items_count": sum(1 for item in sorted_items if item.get("quantity") not in ("", None)),
+                    "portion_text_items_count": sum(1 for item in sorted_items if item.get("portion_text", "")),
                     "notes": meal.get("notes", ""),
+                    "estimated_energy_kcal": assessment.get("estimated_energy_kcal", ""),
+                    "quality_score": assessment.get("quality_score", ""),
+                    "estimation_confidence": assessment.get("estimation_confidence", ""),
+                    "recommendations": " | ".join(assessment.get("recommendations", [])),
+                    "assessment_notes": assessment.get("notes", ""),
                     "source_type": source_type,
                     "source_origin": source_origin,
                     "source_record_id": source_record_id,
@@ -246,7 +279,7 @@ def main() -> int:
                 }
             )
 
-            for item_index, item in enumerate(meal.get("items", []), start=1):
+            for item_index, item in enumerate(sorted_items, start=1):
                 nutrition = item.get("estimated_nutrition", {})
                 meal_items.append(
                     {

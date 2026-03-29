@@ -8,29 +8,44 @@ HOST_BIND="${HOST_BIND:-127.0.0.1}"
 HOST_PORT="${HOST_PORT:-43817}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 VENV_DIR="${VENV_DIR:-$APP_DIR/.venv}"
+DEPLOY_MODE="${DEPLOY_MODE:-standard}"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/suivi-nutrition-dashboard.service"
 
-echo "[suivi-nutrition] Provisioning VPS for ${APP_DIR}"
-
-sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip curl
+echo "[suivi-nutrition] Provisioning VPS for ${APP_DIR} (${DEPLOY_MODE} mode)"
 
 if [[ ! -d "$APP_DIR" ]]; then
   echo "[suivi-nutrition] Missing app directory: $APP_DIR" >&2
   exit 1
 fi
 
-sudo chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
-
-"$PYTHON_BIN" -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
+case "$DEPLOY_MODE" in
+  standard)
+    sudo apt-get update
+    sudo apt-get install -y python3-venv python3-pip curl
+    sudo chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
+    ;;
+  fast)
+    if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+      echo "[suivi-nutrition] Missing virtualenv for fast mode: $VENV_DIR" >&2
+      echo "[suivi-nutrition] Run a standard deploy once before using fast mode." >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "[suivi-nutrition] Unsupported DEPLOY_MODE: $DEPLOY_MODE" >&2
+    exit 1
+    ;;
+esac
 
 "$VENV_DIR/bin/python" "$APP_DIR/scripts/validate.py"
 "$VENV_DIR/bin/python" "$APP_DIR/scripts/normalize_journal.py"
 "$VENV_DIR/bin/python" "$APP_DIR/scripts/build_derived.py"
 
-sudo tee "$SYSTEMD_UNIT_PATH" > /dev/null <<EOF
+if [[ "$DEPLOY_MODE" == "standard" ]]; then
+  sudo tee "$SYSTEMD_UNIT_PATH" > /dev/null <<EOF
 [Unit]
 Description=Suivi Nutrition local dashboard
 After=network-online.target
@@ -50,8 +65,10 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now suivi-nutrition-dashboard.service
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now suivi-nutrition-dashboard.service
+fi
+
 sudo systemctl restart suivi-nutrition-dashboard.service
 sudo systemctl --no-pager --full status suivi-nutrition-dashboard.service
 

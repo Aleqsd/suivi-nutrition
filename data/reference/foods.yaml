@@ -31,12 +31,62 @@
 - key: "orange_juice_fresh"
   label: "Jus d'orange presse maison"
   category: "drink"
-  icon: "🍊"
+  icon: "🧃"
   default_unit: "ml"
   default_portion:
     quantity: 200
     unit: "ml"
     portion_text: "1 verre"
+
+- key: "zucchini_cooked"
+  label: "Courgettes"
+  category: "vegetable"
+  icon: "🥒"
+  default_unit: "g"
+  default_portion:
+    quantity: 60
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "bell_pepper_cooked"
+  label: "Poivrons"
+  category: "vegetable"
+  icon: "🫑"
+  default_unit: "g"
+  default_portion:
+    quantity: 50
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "carrot_cooked"
+  label: "Carottes"
+  category: "vegetable"
+  icon: "🥕"
+  default_unit: "g"
+  default_portion:
+    quantity: 50
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "fish_generic_cooked"
+  label: "Poisson"
+  category: "protein"
+  icon: "🐟"
+  default_unit: "g"
+  default_portion:
+    quantity: 120
+    unit: "g"
+    portion_text: "1 portion"
+
+- key: "caramel_yogurt"
+  label: "Yaourt caramel"
+  category: "dairy"
+  icon: "🍮"
+  default_unit: "g"
+  default_portion:
+    quantity: 125
+    unit: "g"
+    portion_text: "1 pot"
 
 - key: "skyr_plain"
   label: "Skyr nature"
@@ -131,7 +181,7 @@
 - key: "salad_mix"
   label: "Salade verte"
   category: "vegetable"
-  icon: "🥬"
+  icon: "🥗"
   default_unit: "g"
   default_portion:
     quantity: 80
@@ -157,3 +207,43 @@
     quantity: 30
     unit: "g"
     portion_text: "1 portion"
+
+- key: "california_salmon_avocado"
+  label: "California saumon avocat"
+  category: "mixed_dish"
+  icon: "🍣"
+  default_unit: "piece"
+  default_portion:
+    quantity: 1
+    unit: "piece"
+    portion_text: "1 piece"
+
+- key: "maki_tuna_raw"
+  label: "Maki thon cru"
+  category: "mixed_dish"
+  icon: "🍣"
+  default_unit: "piece"
+  default_portion:
+    quantity: 1
+    unit: "piece"
+    portion_text: "1 piece"
+
+- key: "maki_avocado_cream_cheese"
+  label: "Maki avocat cream cheese"
+  category: "mixed_dish"
+  icon: "🍣"
+  default_unit: "piece"
+  default_portion:
+    quantity: 1
+    unit: "piece"
+    portion_text: "1 piece"
+
+- key: "apple_compote"
+  label: "Compote"
+  category: "fruit"
+  icon: "🍎"
+  default_unit: "g"
+  default_portion:
+    quantity: 90
+    unit: "g"
+    portion_text: "1 compote"

@@ -26,46 +26,32 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 51.68.45.129 >> ~/.ssh/known_hosts
 
-      - name: Build deployment archive
-        shell: bash
-        run: |
-          ARCHIVE_PATH="${RUNNER_TEMP}/suivi-nutrition-deploy.tar.gz"
-          tar \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='.venv' \
-            --exclude='__pycache__' \
-            --exclude='.wrangler' \
-            --exclude='tmp' \
-            --exclude='data/journal' \
-            --exclude='data/raw' \
-            --exclude='data/profile/current.yaml' \
-            --exclude='data/profile/health-reference.md' \
-            --exclude='data/normalized' \
-            --exclude='data/derived' \
-            --exclude='site/data/dashboard.json' \
-            -czf "${ARCHIVE_PATH}" .
-          echo "ARCHIVE_PATH=${ARCHIVE_PATH}" >> "$GITHUB_ENV"
-
-      - name: Upload code to the VPS
+      - name: Sync code to the VPS
         shell: bash
         run: |
           ssh ubuntu@51.68.45.129 "mkdir -p /home/ubuntu/GitHub/suivi-nutrition"
-          scp "${ARCHIVE_PATH}" ubuntu@51.68.45.129:/tmp/suivi-nutrition-deploy.tar.gz
-          ssh ubuntu@51.68.45.129 "tar -xzf /tmp/suivi-nutrition-deploy.tar.gz -C /home/ubuntu/GitHub/suivi-nutrition && rm -f /tmp/suivi-nutrition-deploy.tar.gz"
+          rsync -az --delete --itemize-changes --filter='merge scripts/deploy_rsync.rules' ./ ubuntu@51.68.45.129:/home/ubuntu/GitHub/suivi-nutrition/
 
-      - name: Provision and rebuild on the VPS
-        shell: bash
-        run: |
-          ssh ubuntu@51.68.45.129 "cd /home/ubuntu/GitHub/suivi-nutrition && chmod +x scripts/*.sh && APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/provision_vps.sh"
-
-      - name: Publish the generated site to Netlify
+      - name: Run unified pipeline on the VPS
         shell: bash
         run: |
           ssh ubuntu@51.68.45.129 \
             "cd /home/ubuntu/GitHub/suivi-nutrition && \
+             APP_DIR=/home/ubuntu/GitHub/suivi-nutrition \
+             DEPLOY_MODE=standard \
              NETLIFY_SITE_ID='${{ secrets.NETLIFY_SITE_ID }}' \
              NETLIFY_AUTH_TOKEN='${{ secrets.NETLIFY_AUTH_TOKEN }}' \
              DEPLOY_MESSAGE='GitHub Actions ${GITHUB_SHA}' \
-             APP_DIR=/home/ubuntu/GitHub/suivi-nutrition \
-             bash scripts/deploy_netlify_from_vps.sh"
+             bash scripts/run_vps_deploy_pipeline.sh"
+
+      - name: Smoke test public site
+        shell: bash
+        run: |
+          python3 scripts/smoke_test_site.py public --base-url https://sante.zqsdev.com
+
+      - name: Smoke test VPS dashboard
+        shell: bash
+        run: |
+          ssh ubuntu@51.68.45.129 \
+            "cd /home/ubuntu/GitHub/suivi-nutrition && \
+             python3 scripts/smoke_test_site.py vps --base-url http://127.0.0.1:43817/site"

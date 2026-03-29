@@ -35,7 +35,7 @@ IGNORED_ROOTS = [
     ROOT / ".git",
     ROOT / "data" / "normalized",
     ROOT / "data" / "derived",
-    ROOT / "site" / "data",
+    ROOT / "site" / "app" / "data",
     ROOT / "tmp",
     ROOT / "scripts" / "__pycache__",
 ]
@@ -212,7 +212,7 @@ def classify_changes(previous: dict[Path, float], current: dict[Path, float]) ->
         if is_ignored(path):
             continue
         relative = path.relative_to(ROOT).as_posix()
-        if relative.startswith("site/") and not relative.startswith("site/data/") and path.suffix.lower() in SITE_ONLY_SUFFIXES:
+        if relative.startswith("site/") and not relative.startswith("site/app/data/") and path.suffix.lower() in SITE_ONLY_SUFFIXES:
             continue
         requires_rebuild = True
         break

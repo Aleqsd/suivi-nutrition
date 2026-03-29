@@ -3,6 +3,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/ubuntu/GitHub/suivi-nutrition}"
 SITE_DIR="${SITE_DIR:-$APP_DIR/site}"
+FUNCTIONS_DIR="${FUNCTIONS_DIR:-$APP_DIR/netlify/functions}"
 NETLIFY_SITE_ID="${NETLIFY_SITE_ID:-}"
 NETLIFY_AUTH_TOKEN="${NETLIFY_AUTH_TOKEN:-}"
 DEPLOY_MESSAGE="${DEPLOY_MESSAGE:-suivi-nutrition deploy}"
@@ -17,8 +18,8 @@ if [[ ! -f "$SITE_DIR/index.html" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$SITE_DIR/data/dashboard.json" ]]; then
-  echo "[netlify] Missing generated dashboard data at $SITE_DIR/data/dashboard.json" >&2
+if [[ ! -f "$SITE_DIR/app/data/dashboard.json" ]]; then
+  echo "[netlify] Missing generated dashboard data at $SITE_DIR/app/data/dashboard.json" >&2
   exit 1
 fi
 
@@ -28,10 +29,18 @@ if ! command -v npx >/dev/null 2>&1; then
 fi
 
 echo "[netlify] Deploying $SITE_DIR to site $NETLIFY_SITE_ID"
-npx --yes netlify-cli deploy \
-  --prod \
-  --dir "$SITE_DIR" \
-  --site "$NETLIFY_SITE_ID" \
-  --auth "$NETLIFY_AUTH_TOKEN" \
-  --message "$DEPLOY_MESSAGE" \
+deploy_args=(
+  --prod
+  --dir "$SITE_DIR"
+  --site "$NETLIFY_SITE_ID"
+  --auth "$NETLIFY_AUTH_TOKEN"
+  --message "$DEPLOY_MESSAGE"
   --no-build
+)
+
+if [[ -d "$FUNCTIONS_DIR" ]]; then
+  echo "[netlify] Including functions from $FUNCTIONS_DIR"
+  deploy_args+=(--functions "$FUNCTIONS_DIR")
+fi
+
+npx --yes netlify-cli deploy "${deploy_args[@]}"

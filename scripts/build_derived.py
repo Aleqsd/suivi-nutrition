@@ -60,26 +60,26 @@ KEY_LAB_TESTS = [
 VALUE_LABELS = {
     "male": "homme",
     "female": "femme",
-    "very_sedentary": "tres sedentaire",
-    "telework": "teletravail",
+    "very_sedentary": "très sédentaire",
+    "telework": "télétravail",
     "none": "aucune",
     "active": "en cours",
-    "resolved": "resolue",
+    "resolved": "résolue",
     "level_1": "niveau 1",
     "level 1": "niveau 1",
-    "relatively_well_controlled": "relativement bien controle",
+    "relatively_well_controlled": "relativement bien contrôlé",
     "allergy": "allergie",
-    "intolerance": "intolerance",
-    "high": "eleve",
+    "intolerance": "intolérance",
+    "high": "élevé",
     "low": "faible",
-    "moderate_low": "modere a faible",
+    "moderate_low": "modéré à faible",
     "none_or_rare": "aucun ou rare",
-    "generally_ok": "plutot correct",
+    "generally_ok": "plutôt correct",
     "appointment": "consultation",
     "diagnosis": "diagnostic",
     "note": "note",
-    "user-report": "declaration utilisateur",
-    "imaging-report": "compte-rendu d imagerie",
+    "user-report": "déclaration utilisateur",
+    "imaging-report": "compte-rendu d'imagerie",
     "psychology-report": "compte-rendu psychologique",
 }
 
@@ -132,9 +132,9 @@ def latest_lab_snapshot(journal_documents: list[dict]) -> tuple[str | None, list
 def render_latest_labs(latest_date: str | None, latest_results: list[dict]) -> list[str]:
     if not latest_date or not latest_results:
         return [
-            "## Dernier bilan biologique structure",
+            "## Dernier bilan biologique structuré",
             "",
-            "Aucun resultat biologique structure disponible.",
+            "Aucun résultat biologique structuré disponible.",
             ""
         ]
 
@@ -143,7 +143,7 @@ def render_latest_labs(latest_date: str | None, latest_results: list[dict]) -> l
     other_results_count = max(0, len(latest_results) - len(ordered_results))
 
     lines = [
-        "## Dernier bilan biologique structure",
+        "## Dernier bilan biologique structuré",
         "",
         f"Date du dernier panel: `{latest_date}`",
         ""
@@ -159,7 +159,7 @@ def render_latest_labs(latest_date: str | None, latest_results: list[dict]) -> l
             range_parts.append(f"borne basse {ref_low}")
         if ref_high != "":
             range_parts.append(f"borne haute {ref_high}")
-        range_suffix = f" (reference: {', '.join(range_parts)})" if range_parts else ""
+        range_suffix = f" (référence: {', '.join(range_parts)})" if range_parts else ""
         lines.append(f"- {label}: `{value} {unit}`{range_suffix}")
         notes = result.get("notes", "")
         if notes:
@@ -169,7 +169,7 @@ def render_latest_labs(latest_date: str | None, latest_results: list[dict]) -> l
         lines.extend(
             [
                 "",
-                f"{other_results_count} autre(s) resultat(s) sont disponibles dans le journal structure pour ce meme panel."
+                f"{other_results_count} autre(s) résultat(s) sont disponibles dans le journal structuré pour ce même panel."
             ]
         )
 
@@ -195,14 +195,14 @@ def render_health_events(journal_documents: list[dict]) -> list[str]:
 
     if not entries:
         return [
-            "## Chronologie sante notable",
+            "## Chronologie santé notable",
             "",
-            "Aucun evenement de sante structure disponible.",
+            "Aucun événement de santé structuré disponible.",
             ""
         ]
 
     lines = [
-        "## Chronologie sante notable",
+        "## Chronologie santé notable",
         ""
     ]
     for entry in sorted(entries, key=lambda item: (item["event_date"], item["label"]), reverse=True):
@@ -232,7 +232,7 @@ def render_source_documents(journal_documents: list[dict]) -> list[str]:
         return [
             "## Documents source",
             "",
-            "Aucun document source brut reference pour le moment.",
+            "Aucun document source brut référencé pour le moment.",
             ""
         ]
 
@@ -261,22 +261,22 @@ def build_health_reference(journal_documents: list[dict]) -> None:
     goals = profile.get("goals", [])
 
     lines = [
-        "# Reference sante",
+        "# Référence santé",
         "",
-        "Genere a partir des donnees structurees. Mettre a jour les fichiers source puis relancer `python scripts/build_derived.py`.",
+        "Généré à partir des données structurées. Mettre à jour les fichiers source puis relancer `python scripts/build_derived.py`.",
         "",
-        f"Derniere generation: `{date.today().isoformat()}`",
+        f"Dernière génération: `{date.today().isoformat()}`",
         "",
-        "## Identite et situation actuelle",
+        "## Identité et situation actuelle",
         "",
         f"- Date de naissance: `{identity.get('birth_date', 'unknown')}`",
         f"- Sexe: `{pretty_value(identity.get('sex', 'unknown'))}`",
         f"- Taille: `{anthropometrics.get('height_cm', 'unknown')} cm`",
         f"- Poids actuel: `{anthropometrics.get('weight_kg', 'unknown')} kg`",
-        f"- Date de reference anthropometrique: `{anthropometrics.get('effective_date', 'unknown')}`",
-        f"- Niveau d activite: `{pretty_value(lifestyle.get('activity_level', 'unknown'))}`",
+        f"- Date de référence anthropométrique: `{anthropometrics.get('effective_date', 'unknown')}`",
+        f"- Niveau d'activité: `{pretty_value(lifestyle.get('activity_level', 'unknown'))}`",
         f"- Contexte de travail: `{pretty_value(lifestyle.get('work_context', 'unknown'))}`",
-        f"- Activite sportive: `{pretty_value(lifestyle.get('sport_activity', 'unknown'))}`",
+        f"- Activité sportive: `{pretty_value(lifestyle.get('sport_activity', 'unknown'))}`",
         "",
         "## Conditions actives et diagnostics",
         ""
@@ -290,7 +290,7 @@ def build_health_reference(journal_documents: list[dict]) -> None:
             if condition.get("control"):
                 parts.append(pretty_value(condition["control"]))
             if condition.get("diagnosed_on"):
-                parts.append(f"diagnostique le {condition['diagnosed_on']}")
+                parts.append(f"diagnostiqué le {condition['diagnosed_on']}")
             if condition.get("source"):
                 parts.append(f"source {pretty_value(condition['source'])}")
             details = ", ".join(part for part in parts if part)
@@ -298,11 +298,11 @@ def build_health_reference(journal_documents: list[dict]) -> None:
             if condition.get("notes"):
                 lines.append(f"  note : {condition['notes']}")
     else:
-        lines.append("Aucune condition active enregistree.")
+        lines.append("Aucune condition active enregistrée.")
     lines.extend(
         [
             "",
-            "## Allergies et intolerances",
+            "## Allergies et intolérances",
             ""
         ]
     )
@@ -312,12 +312,12 @@ def build_health_reference(journal_documents: list[dict]) -> None:
             if allergy.get("notes"):
                 lines.append(f"  note : {allergy['notes']}")
     else:
-        lines.append("Aucune allergie ou intolerance enregistree.")
+        lines.append("Aucune allergie ou intolérance enregistrée.")
 
     lines.extend(
         [
             "",
-            "## Medicaments et traitements reguliers",
+            "## Médicaments et traitements réguliers",
             ""
         ]
     )
@@ -332,7 +332,7 @@ def build_health_reference(journal_documents: list[dict]) -> None:
             if medication.get("notes"):
                 lines.append(f"  note : {medication['notes']}")
     else:
-        lines.append("Aucun medicament enregistre.")
+        lines.append("Aucun médicament enregistré.")
 
     weight_history = anthropometrics.get("weight_history", [])
     lines.extend(
@@ -348,28 +348,28 @@ def build_health_reference(journal_documents: list[dict]) -> None:
             if entry.get("notes"):
                 lines.append(f"  note : {entry['notes']}")
     else:
-        lines.append("Aucun historique de poids enregistre.")
+        lines.append("Aucun historique de poids enregistré.")
 
     lines.extend(
         [
             "",
             "## Profil alimentaire",
             "",
-            f"- Apport en feculents: `{pretty_value(dietary_pattern.get('starch_intake', 'unknown'))}`",
-            f"- Apport en legumes: `{pretty_value(dietary_pattern.get('vegetable_intake', 'unknown'))}`",
-            f"- Apport en proteines: `{pretty_value(dietary_pattern.get('protein_intake', 'unknown'))}`"
+            f"- Apport en féculents: `{pretty_value(dietary_pattern.get('starch_intake', 'unknown'))}`",
+            f"- Apport en légumes: `{pretty_value(dietary_pattern.get('vegetable_intake', 'unknown'))}`",
+            f"- Apport en protéines: `{pretty_value(dietary_pattern.get('protein_intake', 'unknown'))}`"
         ]
     )
     if dietary_pattern.get("typical_breakfast"):
-        lines.append(f"- Petit-dejeuner type: {dietary_pattern['typical_breakfast']}")
+        lines.append(f"- Petit-déjeuner type: {dietary_pattern['typical_breakfast']}")
     if dietary_pattern.get("typical_lunch"):
-        lines.append(f"- Dejeuner type: {dietary_pattern['typical_lunch']}")
+        lines.append(f"- Déjeuner type: {dietary_pattern['typical_lunch']}")
     if dietary_pattern.get("typical_dinner"):
-        lines.append(f"- Diner type: {dietary_pattern['typical_dinner']}")
+        lines.append(f"- Dîner type: {dietary_pattern['typical_dinner']}")
     if dietary_pattern.get("common_foods"):
-        lines.append(f"- Aliments frequents: {', '.join(dietary_pattern['common_foods'])}")
+        lines.append(f"- Aliments fréquents: {', '.join(dietary_pattern['common_foods'])}")
     if dietary_pattern.get("evening_strategy"):
-        lines.append(f"- Strategie du soir: {dietary_pattern['evening_strategy']}")
+        lines.append(f"- Stratégie du soir: {dietary_pattern['evening_strategy']}")
     if dietary_pattern.get("notes"):
         lines.append(f"- Notes: {dietary_pattern['notes']}")
     lines.append("")
@@ -381,25 +381,25 @@ def build_health_reference(journal_documents: list[dict]) -> None:
         ]
     )
     if digestive_pattern.get("summary"):
-        lines.append(f"- Resume: {digestive_pattern['summary']}")
+        lines.append(f"- Résumé: {digestive_pattern['summary']}")
     if digestive_pattern.get("common_triggers"):
-        lines.append(f"- Declencheurs frequents: {', '.join(digestive_pattern['common_triggers'])}")
+        lines.append(f"- Déclencheurs fréquents: {', '.join(digestive_pattern['common_triggers'])}")
     if digestive_pattern.get("management_strategy"):
-        lines.append(f"- Strategie de gestion: {digestive_pattern['management_strategy']}")
+        lines.append(f"- Stratégie de gestion: {digestive_pattern['management_strategy']}")
     if not any(digestive_pattern.get(key) for key in ["summary", "common_triggers", "management_strategy"]):
-        lines.append("Aucun profil digestif enregistre.")
+        lines.append("Aucun profil digestif enregistré.")
     lines.append("")
 
     lines.extend(
         [
             "## Hydratation et sommeil",
             "",
-            f"- Niveau d hydratation en eau: `{pretty_value(hydration.get('water_intake_level', 'unknown'))}`",
+            f"- Niveau d'hydratation en eau: `{pretty_value(hydration.get('water_intake_level', 'unknown'))}`",
             f"- Niveau de sodas: `{pretty_value(hydration.get('soda_intake_level', 'unknown'))}`",
-            f"- Niveau d alcool: `{pretty_value(hydration.get('alcohol_intake_level', 'unknown'))}`",
+            f"- Niveau d'alcool: `{pretty_value(hydration.get('alcohol_intake_level', 'unknown'))}`",
             f"- Heure habituelle de coucher: `{sleep_pattern.get('typical_bedtime', 'unknown')}`",
             f"- Heure habituelle de lever: `{sleep_pattern.get('typical_wake_time', 'unknown')}`",
-            f"- Qualite du sommeil: `{pretty_value(sleep_pattern.get('quality', 'unknown'))}`"
+            f"- Qualité du sommeil: `{pretty_value(sleep_pattern.get('quality', 'unknown'))}`"
         ]
     )
     if hydration.get("notes"):
@@ -418,7 +418,7 @@ def build_health_reference(journal_documents: list[dict]) -> None:
         for goal in goals:
             lines.append(f"- `{goal}`")
     else:
-        lines.append("Aucun objectif explicite enregistre.")
+        lines.append("Aucun objectif explicite enregistré.")
     lines.append("")
 
     latest_date, latest_results = latest_lab_snapshot(journal_documents)

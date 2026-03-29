@@ -1,0 +1,2 @@
+/app/*  /app/:splat  200!  Role=health
+/app/*  /  302!

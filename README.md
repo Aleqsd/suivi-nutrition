@@ -58,7 +58,7 @@ suivi-nutrition/
   - `data/profile/health-reference.md`
   - `data/normalized/`
   - `data/derived/`
-  - `site/data/dashboard.json`
+  - `site/app/data/dashboard.json`
 - Le depot suit donc surtout:
   - le code
   - les schemas
@@ -101,7 +101,7 @@ Ce script regenere aussi `data/profile/health-reference.md`.
 ## Site en local a la demande
 
 - Le dashboard statique vit dans `site/`
-- Les donnees du site sont regenerees dans `site/data/dashboard.json` par `python scripts/build_derived.py`
+- Les donnees du site sont regenerees dans `site/app/data/dashboard.json` par `python scripts/build_derived.py`
 - Pour un simple serveur statique:
 
 ```bash
@@ -128,7 +128,10 @@ Ce mode:
 - le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard regenere sur le VPS puis publie vers Netlify
 - le site Netlify dedie est `sante-zqsdev`
 - le domaine public vise est `https://sante.zqsdev.com`
-- chaque push sur `main` declenche un deploiement GitHub Actions vers `ovh`, une regeneration du site sur le VPS, puis une publication Netlify
+- chaque push sur `main` declenche une synchronisation `rsync` vers `ovh`, l execution du pipeline distant commun, puis une publication Netlify
+- la page publique `/` sert uniquement de porte d entree de connexion
+- le dashboard et les donnees structurees sont servis sous `/app/`
+- le contenu sensible doit etre protege par Netlify Identity en `Invite only`, fournisseur Google, avec un role `health`
 - le workflow GitHub attend les secrets:
   - `OVH_SSH_KEY`
   - `NETLIFY_AUTH_TOKEN`
@@ -139,16 +142,28 @@ Ce mode:
 powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1
 ```
 
-- ce deploiement manuel n envoie que le code et les references non sensibles
+- le meme script accepte maintenant 2 modes explicites:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1 -Mode standard
+powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1 -Mode fast
+```
+
+- `standard`: reprovision complet du VPS avant rebuild, publication et smoke tests
+- `fast`: saute la reprovision lourde du VPS et ne garde que sync, rebuild, publication et smoke tests; a utiliser quand le VPS est deja sain et que les dependances n ont pas change
+- si `fast` echoue faute de virtualenv ou de dependances serveur, relancer une fois en `standard`
+
+- ce deploiement manuel synchronise le code via `rsync`, puis les donnees privees utiles au dashboard sans propager les suppressions locales
 - les donnees deja presentes sur le VPS sont conservees
-- ce deploiement installe ou met a jour le dashboard en local sur le VPS via `systemd`
+- ce deploiement appelle le pipeline distant `scripts/run_vps_deploy_pipeline.sh`
 - la publication Netlify se fait ensuite via `scripts/deploy_netlify_from_vps.sh`
+- le script lance enfin un smoke test public et un smoke test du dashboard servi par le VPS
 
 ## Donnees sensibles
 
 - Ce depot est pense pour un usage prive et mono-utilisateur
 - En cas de synchronisation distante, chiffrer le depot ou au minimum les artefacts les plus sensibles
-- Un site Netlify expose les donnees publiees au contenu servi. Ne jamais publier sans protection adaptee si des donnees de sante reelles y figurent.
+- Un site Netlify expose les donnees publiees au contenu servi. Pour ce repo, ne publier les donnees sensibles que sous `/app/` avec les redirects de role et Netlify Identity actifs.
 - Les PDF, images ou comptes rendus medicaux restent des sources annexes: la source analytique doit rester structuree
 
 ## Fichiers de depart

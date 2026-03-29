@@ -27,5 +27,5 @@ data/normalized/**
 !data/normalized/.gitkeep
 data/derived/**
 !data/derived/.gitkeep
-site/data/dashboard.json
-!site/data/.gitkeep
+site/app/data/dashboard.json
+!site/app/data/.gitkeep

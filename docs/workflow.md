@@ -9,9 +9,15 @@
 5. Executer `python scripts/normalize_journal.py`
 6. Executer `python scripts/build_derived.py`
 7. Verifier que `data/profile/health-reference.md` reflete bien les changements globaux importants
-8. Si tu utilises le dashboard local, verifier aussi `site/data/dashboard.json`
+8. Si tu utilises le dashboard local, verifier aussi `site/app/data/dashboard.json`
 9. Si tu veux un mode local ponctuel toujours a jour, lancer `python scripts/dev_server.py --host 127.0.0.1 --port 43817`
-10. Si le repo est pousse sur `main`, le deploiement GitHub Actions mettra a jour le code sur le VPS, regenerera le dashboard a partir des donnees deja presentes sur le VPS, puis publiera la version statique vers Netlify
+10. Si le repo est pousse sur `main`, le deploiement GitHub Actions synchronisera le code vers le VPS via `rsync`, executera le pipeline distant commun, puis publiera la version statique vers Netlify
+11. En production Netlify, la racine `/` doit rester une page de connexion et la zone `/app/` doit etre reservee au role `health`
+12. Pour publier l etat local courant avec les donnees privees, utiliser `powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1`
+13. Le script accepte 2 modes:
+14. `-Mode standard` pour une reprovision VPS complete avant rebuild, publication et smoke tests
+15. `-Mode fast` pour un deploiement plus rapide qui saute la reprovision lourde du VPS et garde sync, rebuild, publication et smoke tests
+16. Utiliser `fast` pour les deploiements courants quand le VPS est deja sain; revenir a `standard` apres un changement de dependances ou si `fast` echoue faute de virtualenv/dependances
 
 ## Ajouter un repas depuis un message naturel
 
@@ -20,10 +26,11 @@
 3. Remplir `source_text` avec la formulation utile si elle apporte du contexte
 4. Si la portion est exacte, utiliser `quantity` et `unit`
 5. Si la portion est floue, utiliser `portion_text` et `quantity_source`
-6. Ne renseigner `estimated_nutrition` que si l estimation est defendable
-7. Regenerer les sorties pour mettre a jour les tendances
-8. Si le serveur local de dev tourne, le dashboard se mettra a jour automatiquement
-9. Ne pas ajouter ces donnees sensibles a Git: elles restent locales ou sur le VPS
+6. Dans `items[]`, ordonner les aliments par quantite decroissante quand une quantite est disponible
+7. Ne renseigner `estimated_nutrition` que si l estimation est defendable
+8. Regenerer les sorties pour mettre a jour les tendances
+9. Si le serveur local de dev tourne, le dashboard se mettra a jour automatiquement
+10. Ne pas ajouter ces donnees sensibles a Git: elles restent locales ou sur le VPS
 
 ## Mettre a jour le profil
 
