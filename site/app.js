@@ -488,6 +488,7 @@ function setupReveal() {
 }
 
 function setupLiveReload() {
+  if (!["127.0.0.1", "localhost"].includes(window.location.hostname)) return;
   if (!("EventSource" in window)) return;
   try {
     const events = new EventSource("/__events");

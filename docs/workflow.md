@@ -11,7 +11,7 @@
 7. Verifier que `data/profile/health-reference.md` reflete bien les changements globaux importants
 8. Si tu utilises le dashboard local, verifier aussi `site/data/dashboard.json`
 9. Si tu veux un mode local ponctuel toujours a jour, lancer `python scripts/dev_server.py --host 127.0.0.1 --port 43817`
-10. Si le repo est pousse sur `main`, le deploiement GitHub Actions mettra a jour le code sur le VPS puis regenerera le dashboard a partir des donnees deja presentes sur le VPS
+10. Si le repo est pousse sur `main`, le deploiement GitHub Actions mettra a jour le code sur le VPS, regenerera le dashboard a partir des donnees deja presentes sur le VPS, puis publiera la version statique vers Netlify
 
 ## Ajouter un repas depuis un message naturel
 

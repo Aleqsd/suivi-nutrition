@@ -42,5 +42,5 @@ foreach ($Item in $SiteItems) {
   scp $LocalPath "${RemoteHost}:$RemoteDir/site/"
 }
 
-ssh $RemoteHost "chmod +x $RemoteDir/scripts/provision_vps.sh $RemoteDir/scripts/install_cloudflared_ubuntu.sh $RemoteDir/scripts/configure_cloudflared_service.sh"
+ssh $RemoteHost "chmod +x $RemoteDir/scripts/provision_vps.sh $RemoteDir/scripts/deploy_netlify_from_vps.sh"
 ssh $RemoteHost "APP_DIR=$RemoteDir bash $RemoteDir/scripts/provision_vps.sh"

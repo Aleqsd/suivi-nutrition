@@ -123,12 +123,16 @@ Ce mode:
 - recharge automatiquement le dashboard dans le navigateur
 - expose un statut local sur `http://127.0.0.1:43817/__status`
 
-## Hebergement VPS via Cloudflare
+## Hebergement VPS + Netlify
 
-- le scenario recommande pour `sante.zqsdev.com` est documente dans `docs/cloudflare-sante-subdomain.md`
-- le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard servi localement sur le VPS puis publie via Cloudflare
-- chaque push sur `main` declenche un deploiement GitHub Actions vers `ovh`, puis une regeneration du site sur le VPS
-- le workflow GitHub attend le secret `OVH_SSH_KEY` avec la cle privee SSH qui permet de joindre le VPS
+- le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard regenere sur le VPS puis publie vers Netlify
+- le site Netlify dedie est `sante-zqsdev`
+- le domaine public vise est `https://sante.zqsdev.com`
+- chaque push sur `main` declenche un deploiement GitHub Actions vers `ovh`, une regeneration du site sur le VPS, puis une publication Netlify
+- le workflow GitHub attend les secrets:
+  - `OVH_SSH_KEY`
+  - `NETLIFY_AUTH_TOKEN`
+  - `NETLIFY_SITE_ID`
 - deploiement manuel de secours depuis Windows:
 
 ```powershell
@@ -138,12 +142,13 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1
 - ce deploiement manuel n envoie que le code et les references non sensibles
 - les donnees deja presentes sur le VPS sont conservees
 - ce deploiement installe ou met a jour le dashboard en local sur le VPS via `systemd`
-- `cloudflared` est prepare separement apres creation du tunnel dans Cloudflare
+- la publication Netlify se fait ensuite via `scripts/deploy_netlify_from_vps.sh`
 
 ## Donnees sensibles
 
 - Ce depot est pense pour un usage prive et mono-utilisateur
 - En cas de synchronisation distante, chiffrer le depot ou au minimum les artefacts les plus sensibles
+- Un site Netlify expose les donnees publiees au contenu servi. Ne jamais publier sans protection adaptee si des donnees de sante reelles y figurent.
 - Les PDF, images ou comptes rendus medicaux restent des sources annexes: la source analytique doit rester structuree
 
 ## Fichiers de depart

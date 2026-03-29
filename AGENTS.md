@@ -147,16 +147,16 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
   - code deploye depuis GitHub
   - donnees privees conservees uniquement sur le VPS
   - service `systemd` sur le VPS pour maintenir le dashboard
-  - publication distante via Cloudflare Tunnel et Cloudflare Access
-- Chaque push sur `main` doit declencher un deploiement du code vers `/home/ubuntu/GitHub/suivi-nutrition` sur le VPS, puis une regeneration du site a partir des donnees du VPS.
+  - publication distante du site statique vers Netlify
+- Chaque push sur `main` doit declencher un deploiement du code vers `/home/ubuntu/GitHub/suivi-nutrition` sur le VPS, puis une regeneration du site a partir des donnees du VPS, puis un `netlify deploy --prod` du dossier `site/`.
 - Toute mecanique de deploiement doit preserver les donnees deja presentes sur le VPS. Ne pas remplacer ni supprimer les journaux, PDF, profils prives ou artefacts derives distants par un checkout Git vide.
 
-## Variante VPS via Cloudflare
+## Variante VPS via Netlify
 
-- Si l utilisateur demande un hebergement distant pour `sante.zqsdev.com`, conserver le dashboard Python sur `127.0.0.1:43817` meme sur le VPS.
-- La publication distante doit passer par `cloudflared` et Cloudflare Access, pas par une exposition directe du port applicatif.
-- Le sous-domaine `sante.zqsdev.com` peut etre delegue a Cloudflare sans deplacer le reste de `zqsdev.com`.
-- Si la partie compte Cloudflare ou Netlify n est pas authentifiee dans l environnement courant, preparer et executer la partie VPS, puis laisser seulement la delegation DNS et la creation du tunnel/access comme etapes console restantes.
+- Si l utilisateur veut exposer le dashboard sur `sante.zqsdev.com`, utiliser Netlify DNS et un site Netlify dedie plutot qu un tunnel Cloudflare.
+- La publication doit partir du VPS apres regeneration des donnees pour eviter de pousser les donnees privees vers GitHub.
+- Le site Netlify cible peut etre mis a jour via `scripts/deploy_netlify_from_vps.sh`.
+- Si l authentification Netlify n est pas disponible dans l environnement courant, preparer le VPS et le pipeline GitHub, puis laisser seulement la configuration des secrets Netlify comme etape restante.
 
 ## Regles de modelisation
 

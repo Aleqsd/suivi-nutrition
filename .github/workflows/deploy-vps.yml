@@ -58,3 +58,14 @@ jobs:
         shell: bash
         run: |
           ssh ubuntu@51.68.45.129 "cd /home/ubuntu/GitHub/suivi-nutrition && chmod +x scripts/*.sh && APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/provision_vps.sh"
+
+      - name: Publish the generated site to Netlify
+        shell: bash
+        run: |
+          ssh ubuntu@51.68.45.129 \
+            "cd /home/ubuntu/GitHub/suivi-nutrition && \
+             NETLIFY_SITE_ID='${{ secrets.NETLIFY_SITE_ID }}' \
+             NETLIFY_AUTH_TOKEN='${{ secrets.NETLIFY_AUTH_TOKEN }}' \
+             DEPLOY_MESSAGE='GitHub Actions ${GITHUB_SHA}' \
+             APP_DIR=/home/ubuntu/GitHub/suivi-nutrition \
+             bash scripts/deploy_netlify_from_vps.sh"
