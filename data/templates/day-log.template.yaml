@@ -1,0 +1,26 @@
+date: "YYYY-MM-DD"
+timezone: "Europe/Paris"
+source:
+  type: "manual"
+  origin: "user-report"
+  record_id: "journal-YYYY-MM-DD"
+  imported_at: "YYYY-MM-DD"
+meals:
+  - time: "12:00"
+    logged_at: "YYYY-MM-DDT12:05:00+01:00"
+    meal_type: "lunch"
+    capture_method: "realtime"
+    confidence: "high"
+    location: "home"
+    context: ""
+    source_text: ""
+    notes: ""
+    items:
+      - food_key: ""
+        label: ""
+        quantity: 0
+        unit: "g"
+        quantity_source: "exact"
+        preparation: ""
+        notes: ""
+

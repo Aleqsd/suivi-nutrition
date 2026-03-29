@@ -1,0 +1,58 @@
+name: Deploy to OVH
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ovh-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH access
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.OVH_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 51.68.45.129 >> ~/.ssh/known_hosts
+
+      - name: Build deployment archive
+        shell: bash
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='.wrangler' \
+            --exclude='tmp' \
+            --exclude='data/journal' \
+            --exclude='data/raw' \
+            --exclude='data/profile/current.yaml' \
+            --exclude='data/profile/health-reference.md' \
+            --exclude='data/normalized' \
+            --exclude='data/derived' \
+            --exclude='site/data/dashboard.json' \
+            -czf deploy.tar.gz .
+
+      - name: Upload code to the VPS
+        shell: bash
+        run: |
+          ssh ubuntu@51.68.45.129 "mkdir -p /home/ubuntu/GitHub/suivi-nutrition"
+          scp deploy.tar.gz ubuntu@51.68.45.129:/tmp/suivi-nutrition-deploy.tar.gz
+          ssh ubuntu@51.68.45.129 "tar -xzf /tmp/suivi-nutrition-deploy.tar.gz -C /home/ubuntu/GitHub/suivi-nutrition && rm -f /tmp/suivi-nutrition-deploy.tar.gz"
+
+      - name: Provision and rebuild on the VPS
+        shell: bash
+        run: |
+          ssh ubuntu@51.68.45.129 "cd /home/ubuntu/GitHub/suivi-nutrition && chmod +x scripts/*.sh && APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/provision_vps.sh"

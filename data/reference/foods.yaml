@@ -1,0 +1,159 @@
+- key: "whole_wheat_sliced_bread"
+  label: "Pain de mie complet"
+  category: "starch"
+  icon: "🍞"
+  default_unit: "g"
+  default_portion:
+    quantity: 35
+    unit: "g"
+    portion_text: "1 tranche"
+
+- key: "scrambled_eggs"
+  label: "Oeuf brouille"
+  category: "protein"
+  icon: "🍳"
+  default_unit: "g"
+  default_portion:
+    quantity: 100
+    unit: "g"
+    portion_text: "1 portion standard"
+
+- key: "comte"
+  label: "Comte"
+  category: "dairy"
+  icon: "🧀"
+  default_unit: "g"
+  default_portion:
+    quantity: 15
+    unit: "g"
+    portion_text: "2 petits bouts"
+
+- key: "orange_juice_fresh"
+  label: "Jus d'orange presse maison"
+  category: "drink"
+  icon: "🍊"
+  default_unit: "ml"
+  default_portion:
+    quantity: 200
+    unit: "ml"
+    portion_text: "1 verre"
+
+- key: "skyr_plain"
+  label: "Skyr nature"
+  category: "dairy"
+  icon: "🥣"
+  default_unit: "g"
+  default_portion:
+    quantity: 150
+    unit: "g"
+    portion_text: "1 pot"
+
+- key: "banana"
+  label: "Banane"
+  category: "fruit"
+  icon: "🍌"
+  default_unit: "g"
+  default_portion:
+    quantity: 120
+    unit: "g"
+    portion_text: "1 banane"
+
+- key: "chicken_breast"
+  label: "Blanc de poulet"
+  category: "protein"
+  icon: "🍗"
+  default_unit: "g"
+  default_portion:
+    quantity: 150
+    unit: "g"
+    portion_text: "1 portion"
+
+- key: "rice_cooked"
+  label: "Riz cuit"
+  category: "starch"
+  icon: "🍚"
+  default_unit: "g"
+  default_portion:
+    quantity: 180
+    unit: "g"
+    portion_text: "1 assiette moyenne"
+
+- key: "pasta_cooked"
+  label: "Pates cuites"
+  category: "starch"
+  icon: "🍝"
+  default_unit: "g"
+  default_portion:
+    quantity: 200
+    unit: "g"
+    portion_text: "1 assiette moyenne"
+
+- key: "burger"
+  label: "Burger"
+  category: "mixed_dish"
+  icon: "🍔"
+  default_unit: "g"
+  default_portion:
+    quantity: 220
+    unit: "g"
+    portion_text: "1 burger standard"
+
+- key: "fries"
+  label: "Frites"
+  category: "starch"
+  icon: "🍟"
+  default_unit: "g"
+  default_portion:
+    quantity: 150
+    unit: "g"
+    portion_text: "1 portion"
+
+- key: "olive_oil"
+  label: "Huile d'olive"
+  category: "fat"
+  icon: "🫒"
+  default_unit: "g"
+  default_portion:
+    quantity: 10
+    unit: "g"
+    portion_text: "1 cuillere a soupe"
+
+- key: "omelette"
+  label: "Omelette"
+  category: "protein"
+  icon: "🍳"
+  default_unit: "g"
+  default_portion:
+    quantity: 120
+    unit: "g"
+    portion_text: "1 omelette simple"
+
+- key: "salad_mix"
+  label: "Salade verte"
+  category: "vegetable"
+  icon: "🥬"
+  default_unit: "g"
+  default_portion:
+    quantity: 80
+    unit: "g"
+    portion_text: "1 bol"
+
+- key: "vegetable_mix"
+  label: "Legumes"
+  category: "vegetable"
+  icon: "🥦"
+  default_unit: "g"
+  default_portion:
+    quantity: 120
+    unit: "g"
+    portion_text: "1 accompagnement"
+
+- key: "cheese_portion"
+  label: "Fromage"
+  category: "dairy"
+  icon: "🧀"
+  default_unit: "g"
+  default_portion:
+    quantity: 30
+    unit: "g"
+    portion_text: "1 portion"

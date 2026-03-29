@@ -1,0 +1,28 @@
+identity:
+  birth_date: "1990-01-01"
+  sex: "unknown"
+
+anthropometrics:
+  height_cm: 0
+  weight_kg: 0
+  effective_date: "1990-01-01"
+  weight_history: []
+
+lifestyle:
+  activity_level: "unknown"
+  work_context: "unknown"
+  sport_activity: "unknown"
+
+conditions: []
+allergies: []
+medications: []
+
+dietary_pattern:
+  starch_intake: "unknown"
+  vegetable_intake: "unknown"
+  protein_intake: "unknown"
+
+digestive_pattern: {}
+hydration: {}
+sleep_pattern: {}
+goals: []

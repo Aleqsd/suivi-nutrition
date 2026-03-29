@@ -1,0 +1,7 @@
+- key: "vitamin_d3"
+  label: "Vitamin D3"
+  default_dose_unit: "IU"
+- key: "magnesium"
+  label: "Magnesium"
+  default_dose_unit: "mg"
+

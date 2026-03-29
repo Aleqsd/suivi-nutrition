@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tableau de bord santé</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='52' y='54' text-anchor='middle' dominant-baseline='middle' font-size='82'%3E%F0%9F%A5%91%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <main>
+        <section class="diet-layout reveal">
+          <div class="section-head">
+            <p class="eyebrow">Nutrition</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🍽️</span><span>Aliments les plus frequents</span></h2>
+            <p>Cette vue montre rapidement ce qui revient le plus souvent dans les repas déjà saisis.</p>
+          </div>
+          <div class="food-table-wrap">
+            <table class="food-table">
+              <thead>
+                <tr>
+                  <th>Aliment</th>
+                  <th>Occurrences</th>
+                  <th>Jours distincts</th>
+                  <th>Quantite totale</th>
+                  <th>Exemples de portions</th>
+                </tr>
+              </thead>
+              <tbody id="food-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="meal-showcase reveal">
+          <div class="section-head">
+            <p class="eyebrow">Repas</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🍴</span><span>Derniers repas enregistres</span></h2>
+            <p>Les derniers repas saisis en conversation restent visibles ici avec portions, icones et niveau d estimation.</p>
+          </div>
+          <div class="meal-card-grid" id="recent-meals"></div>
+        </section>
+
+        <section class="signal-strip reveal" aria-labelledby="signal-title">
+          <div class="section-head compact">
+            <p class="eyebrow">Signaux</p>
+            <h2 id="signal-title" class="title-with-icon"><span class="title-icon" aria-hidden="true">✦</span><span>Ce qui ressort en ce moment</span></h2>
+          </div>
+          <div class="signal-list" id="signal-list"></div>
+        </section>
+
+        <section class="two-column reveal">
+          <div class="section-head">
+            <p class="eyebrow">Profil</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🧾</span><span>Contexte stable et base actuelle</span></h2>
+            <p>Informations de sante de reference extraites du profil structure et de la fiche de synthese.</p>
+          </div>
+          <div class="summary-stack" id="reference-sections"></div>
+        </section>
+
+        <section class="lab-section reveal">
+          <div class="section-head">
+            <p class="eyebrow">Biologie</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🧪</span><span>Marqueurs cles du dernier bilan structure</span></h2>
+            <p id="lab-intro">Le dernier panel structure apparait ici.</p>
+          </div>
+          <div class="lab-grid" id="lab-grid"></div>
+        </section>
+
+        <section class="focus-layout reveal">
+          <div class="section-head">
+            <p class="eyebrow">Digestif</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🌿</span><span>Declencheurs, contexte et marqueurs a surveiller</span></h2>
+            <p>Construit a partir du profil actuel, des evenements digestifs et de l historique biologique structure.</p>
+          </div>
+          <div class="focus-grid">
+            <article class="focus-panel digestive-panel">
+              <div class="panel-header">
+                <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🫀</span><span>Profil digestif</span></h3>
+                <p id="digestive-summary">Le contexte digestif apparait ici.</p>
+              </div>
+              <div class="focus-blocks">
+                <div class="focus-block">
+                  <p class="focus-label">Declencheurs connus</p>
+                  <div class="chip-list" id="digestive-trigger-list"></div>
+                </div>
+                <div class="focus-block">
+                  <p class="focus-label">Gestion</p>
+                  <p class="focus-copy" id="digestive-management"></p>
+                </div>
+                <div class="focus-block">
+                  <p class="focus-label">Conditions concernees</p>
+                  <div class="stack-list" id="digestive-conditions"></div>
+                </div>
+                <div class="focus-block">
+                  <p class="focus-label">Points de repere utiles</p>
+                  <div class="stack-list" id="digestive-events"></div>
+                </div>
+                <div class="focus-block">
+                  <p class="focus-label">Bilans utiles</p>
+                  <div class="mini-lab-grid" id="digestive-labs"></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="focus-panel lab-history-panel">
+              <div class="panel-header">
+                <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">📉</span><span>Evolution des bilans</span></h3>
+                <p>Derniere valeur, valeur precedente connue et tendance compacte pour les marqueurs recurrents.</p>
+              </div>
+              <div class="lab-history-grid" id="lab-history-grid"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="data-stage reveal">
+          <div class="section-head">
+            <p class="eyebrow">Tendances</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">📈</span><span>Poids, couverture des donnees et historique de saisie</span></h2>
+            <p>Ces vues montrent la qualite de structure disponible dans le depot, pas seulement le volume brut.</p>
+          </div>
+          <div class="stage-grid">
+            <article class="viz-panel">
+              <div class="panel-header">
+                <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">⚖️</span><span>Evolution du poids</span></h3>
+                <p>Seulement les points connus</p>
+              </div>
+              <div id="weight-chart" class="chart"></div>
+            </article>
+            <article class="viz-panel">
+              <div class="panel-header">
+                <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🗂️</span><span>Saisie mensuelle</span></h3>
+                <p>Couverture et recapitulatif</p>
+              </div>
+              <div id="monthly-bars" class="chart"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="timeline-layout reveal">
+          <div class="section-head">
+            <p class="eyebrow">Chronologie</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🗓️</span><span>Historique medical, examens, diagnostics et points marquants</span></h2>
+            <p>Chronologie lisible construite a partir des evenements structures du journal.</p>
+          </div>
+          <div class="timeline-list" id="timeline-list"></div>
+        </section>
+
+        <section class="documents reveal">
+          <div class="section-head">
+            <p class="eyebrow">Documents</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">📁</span><span>Documents source actuellement indexes</span></h2>
+            <p>Le site ne remplace pas les fichiers bruts; il montre ce qui alimente la vue structuree.</p>
+          </div>
+          <div class="document-list" id="document-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="reference-template">
+      <article class="summary-block">
+        <h3></h3>
+        <div class="summary-lines"></div>
+      </article>
+    </template>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

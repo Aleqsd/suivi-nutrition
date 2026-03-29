@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/suivi-nutrition/profile.schema.json",
+  "title": "profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile_version",
+    "updated_at",
+    "identity",
+    "anthropometrics",
+    "lifestyle"
+  ],
+  "properties": {
+    "profile_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "birth_date"
+      ],
+      "properties": {
+        "birth_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "sex": {
+          "type": "string",
+          "enum": [
+            "male",
+            "female",
+            "intersex",
+            "other",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "anthropometrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "height_cm",
+        "weight_kg",
+        "effective_date"
+      ],
+      "properties": {
+        "height_cm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "weight_kg": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "effective_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "weight_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "date",
+              "weight_kg"
+            ],
+            "properties": {
+              "date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "weight_kg": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "lifestyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activity_level",
+        "work_context",
+        "sport_activity"
+      ],
+      "properties": {
+        "activity_level": {
+          "type": "string",
+          "enum": [
+            "very_sedentary",
+            "sedentary",
+            "lightly_active",
+            "moderately_active",
+            "very_active"
+          ]
+        },
+        "work_context": {
+          "type": "string"
+        },
+        "sport_activity": {
+          "type": "string"
+        }
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "status",
+          "source"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "historical",
+              "resolved"
+            ]
+          },
+          "severity": {
+            "type": "string"
+          },
+          "control": {
+            "type": "string"
+          },
+          "diagnosed_on": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "source": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "allergies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "type"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "allergy",
+              "intolerance",
+              "sensitivity"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "medications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "status"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "regular",
+              "occasional",
+              "none"
+            ]
+          },
+          "dose": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dietary_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "starch_intake": {
+          "type": "string"
+        },
+        "vegetable_intake": {
+          "type": "string"
+        },
+        "protein_intake": {
+          "type": "string"
+        },
+        "typical_breakfast": {
+          "type": "string"
+        },
+        "typical_lunch": {
+          "type": "string"
+        },
+        "typical_dinner": {
+          "type": "string"
+        },
+        "common_foods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evening_strategy": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "digestive_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "common_triggers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "management_strategy": {
+          "type": "string"
+        }
+      }
+    },
+    "hydration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "water_intake_level": {
+          "type": "string"
+        },
+        "soda_intake_level": {
+          "type": "string"
+        },
+        "alcohol_intake_level": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "sleep_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "typical_bedtime": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+        },
+        "typical_wake_time": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+        },
+        "quality": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}
