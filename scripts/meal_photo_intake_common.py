@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from _common import RAW_MEAL_PHOTOS_DIR, ROOT, ensure_parent, load_yaml, write_yaml
+from _common import RAW_MEAL_PHOTOS_DIR, ROOT, ensure_parent, iter_day_log_files, load_yaml, write_yaml
 
 
 DEFAULT_TIMEZONE = "Europe/Paris"
@@ -96,6 +96,9 @@ MEAL_ANALYSIS_SCHEMA = {
     "additionalProperties": False,
     "required": [
         "meal_confidence",
+        "image_confidence",
+        "portion_confidence",
+        "nutrition_confidence",
         "estimation_confidence",
         "estimated_energy_kcal",
         "quality_score",
@@ -105,6 +108,9 @@ MEAL_ANALYSIS_SCHEMA = {
     ],
     "properties": {
         "meal_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "image_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "portion_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "nutrition_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "estimation_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "estimated_energy_kcal": {"type": "number", "minimum": 0},
         "quality_score": {"type": "integer", "minimum": 0, "maximum": 100},
@@ -155,6 +161,14 @@ class IntakeSettings:
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     timezone_name: str = DEFAULT_TIMEZONE
     skip_publish: bool = False
+
+
+def load_profile_context() -> dict[str, Any]:
+    profile_path = ROOT / "data" / "profile" / "current.yaml"
+    if not profile_path.exists():
+        return {}
+    document = load_yaml(profile_path)
+    return document if isinstance(document, dict) else {}
 
 
 def json_dumps(value: Any) -> str:
@@ -283,6 +297,29 @@ def load_food_reference() -> list[dict[str, Any]]:
     path = ROOT / "data" / "reference" / "foods.yaml"
     document = load_yaml(path)
     return [item for item in document if isinstance(item, dict)] if isinstance(document, list) else []
+
+
+def load_recent_meal_labels(limit: int = 12) -> list[str]:
+    labels: list[str] = []
+    for path in reversed(iter_day_log_files()):
+        document = load_yaml(path)
+        if not isinstance(document, dict):
+            continue
+        meals = document.get("meals", [])
+        if not isinstance(meals, list):
+            continue
+        for meal in reversed(meals):
+            if not isinstance(meal, dict):
+                continue
+            for item in meal.get("items", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                label = truncate_text(str(item.get("label", "")).strip(), 80)
+                if label and label not in labels:
+                    labels.append(label)
+                    if len(labels) >= limit:
+                        return labels
+    return labels
 
 
 def normalize_unit(value: Any) -> str:
@@ -466,6 +503,47 @@ def _build_known_foods_prompt(food_reference: list[dict[str, Any]]) -> str:
     return "\n".join(f"- {line}" for line in rendered[:80])
 
 
+def _build_profile_context_prompt(profile: dict[str, Any], recent_meal_labels: list[str]) -> str:
+    if not profile and not recent_meal_labels:
+        return ""
+
+    lines: list[str] = []
+    anthropometrics = profile.get("anthropometrics", {}) if isinstance(profile.get("anthropometrics"), dict) else {}
+    dietary_pattern = profile.get("dietary_pattern", {}) if isinstance(profile.get("dietary_pattern"), dict) else {}
+    digestive_pattern = profile.get("digestive_pattern", {}) if isinstance(profile.get("digestive_pattern"), dict) else {}
+    lifestyle = profile.get("lifestyle", {}) if isinstance(profile.get("lifestyle"), dict) else {}
+    allergies = profile.get("allergies", []) if isinstance(profile.get("allergies"), list) else []
+
+    if anthropometrics.get("height_cm") or anthropometrics.get("weight_kg"):
+        parts = []
+        if anthropometrics.get("height_cm"):
+            parts.append(f"taille {anthropometrics['height_cm']} cm")
+        if anthropometrics.get("weight_kg"):
+            parts.append(f"poids {anthropometrics['weight_kg']} kg")
+        lines.append("- Profil corporel: " + ", ".join(parts) + ".")
+    if lifestyle.get("activity_level"):
+        lines.append(f"- Activité habituelle: {lifestyle['activity_level']}.")
+    if dietary_pattern.get("typical_breakfast"):
+        lines.append(f"- Petit déjeuner habituel: {truncate_text(str(dietary_pattern['typical_breakfast']), 120)}")
+    if dietary_pattern.get("typical_lunch"):
+        lines.append(f"- Déjeuner habituel: {truncate_text(str(dietary_pattern['typical_lunch']), 120)}")
+    if dietary_pattern.get("typical_dinner"):
+        lines.append(f"- Dîner habituel: {truncate_text(str(dietary_pattern['typical_dinner']), 120)}")
+    common_foods = dietary_pattern.get("common_foods", []) if isinstance(dietary_pattern.get("common_foods"), list) else []
+    if common_foods:
+        lines.append("- Aliments fréquents: " + ", ".join(truncate_text(str(value), 40) for value in common_foods[:10]) + ".")
+    if digestive_pattern.get("summary"):
+        lines.append(f"- Contexte digestif: {truncate_text(str(digestive_pattern['summary']), 140)}")
+    triggers = digestive_pattern.get("common_triggers", []) if isinstance(digestive_pattern.get("common_triggers"), list) else []
+    if triggers:
+        lines.append("- Déclencheurs digestifs connus: " + ", ".join(truncate_text(str(value), 40) for value in triggers[:6]) + ".")
+    if allergies:
+        lines.append("- Allergies/intolérances: " + ", ".join(truncate_text(str(entry.get("label", "")), 40) for entry in allergies[:6] if isinstance(entry, dict) and entry.get("label")) + ".")
+    if recent_meal_labels:
+        lines.append("- Aliments vus récemment dans le journal: " + ", ".join(recent_meal_labels[:12]) + ".")
+    return "\n".join(line for line in lines if line.strip())
+
+
 def _extract_response_text(response: Any) -> str:
     output_text = getattr(response, "output_text", "")
     if output_text:
@@ -487,6 +565,9 @@ def analyze_meal_photo(
     model: str,
     api_key: str,
     food_reference: list[dict[str, Any]],
+    capture_context: dict[str, str] | None = None,
+    profile: dict[str, Any] | None = None,
+    recent_meal_labels: list[str] | None = None,
 ) -> dict[str, Any]:
     if not api_key:
         raise ValueError("Missing OPENAI_API_KEY.")
@@ -494,6 +575,16 @@ def analyze_meal_photo(
     from openai import OpenAI
 
     data_url = f"data:{content_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+    capture_context = capture_context or {}
+    profile_context = _build_profile_context_prompt(profile or {}, recent_meal_labels or [])
+    capture_context_prompt = ""
+    if capture_context:
+        capture_context_prompt = (
+            f"Heure estimée de prise: {capture_context.get('time', 'inconnue')}.\n"
+            f"Date estimée: {capture_context.get('date', 'inconnue')}.\n"
+            f"Type de repas probable d'après l'heure: {infer_meal_type(capture_context.get('time', ''))}.\n"
+        )
+
     prompt = (
         "Tu analyses une photo de repas pour un journal nutritionnel personnel.\n"
         "Réponds uniquement selon le JSON schema fourni.\n"
@@ -509,6 +600,17 @@ def analyze_meal_photo(
         "- Les recommandations doivent être courtes, concrètes et en français.\n"
         "- Les labels d'aliments doivent être en français si possible.\n"
         "- Le score qualité sur 100 est heuristique et non médical.\n\n"
+        "- meal_confidence = confiance globale sur les aliments détectés.\n"
+        "- image_confidence = confiance sur ce que l'image montre réellement.\n"
+        "- portion_confidence = confiance sur les quantités/portions.\n"
+        "- nutrition_confidence = confiance sur l'estimation calorique.\n"
+        "- estimation_confidence doit suivre nutrition_confidence pour compatibilité.\n\n"
+        "Contexte de capture:\n"
+        f"{capture_context_prompt or '- non fourni'}"
+    )
+    if profile_context:
+        prompt += "\nContexte personnel utile pour interpréter la photo sans inventer:\n" + profile_context + "\n\n"
+    prompt += (
         "Références alimentaires connues du dépôt:\n"
         f"{_build_known_foods_prompt(food_reference)}\n\n"
         f"Nom de fichier source: {filename}\n"
@@ -597,7 +699,12 @@ def normalize_analysis_to_draft(
         )
 
     meal_confidence = normalize_confidence(analysis.get("meal_confidence"), default="medium")
+    image_confidence = normalize_confidence(analysis.get("image_confidence"), default=meal_confidence)
+    portion_confidence = normalize_confidence(analysis.get("portion_confidence"), default=meal_confidence)
+    nutrition_confidence = normalize_confidence(analysis.get("nutrition_confidence"), default=analysis.get("estimation_confidence") or meal_confidence)
     assessment_confidence = normalize_confidence(analysis.get("estimation_confidence"), default=meal_confidence)
+    if assessment_confidence != nutrition_confidence:
+        assessment_confidence = nutrition_confidence
     recommendations = [truncate_text(str(value).strip(), 120) for value in analysis.get("recommendations", []) if str(value).strip()]
     top_labels = ", ".join(item["label"] for item in items[:4])
     source_text = f"Photo de repas partagée depuis Android. Aliments détectés: {top_labels}." if top_labels else "Photo de repas partagée depuis Android."
@@ -631,6 +738,9 @@ def normalize_analysis_to_draft(
         "meal_assessment": {
             "estimated_energy_kcal": round(estimated_energy_kcal, 1),
             "quality_score": quality_score,
+            "image_confidence": image_confidence,
+            "portion_confidence": portion_confidence,
+            "nutrition_confidence": nutrition_confidence,
             "estimation_confidence": assessment_confidence,
             "recommendations": recommendations[:3],
             "notes": " ".join(note for note in notes if note).strip(),
@@ -769,6 +879,28 @@ def load_capture_record(capture_id: str) -> dict[str, Any]:
     if sidecar_path is None:
         raise FileNotFoundError(f"Unknown capture id: {capture_id}")
     return json.loads(sidecar_path.read_text(encoding="utf-8"))
+
+
+def list_capture_records_for_uploader(uploader_email: str, *, limit: int = 8) -> list[dict[str, Any]]:
+    if not RAW_MEAL_PHOTOS_DIR.exists():
+        return []
+    matches = sorted(RAW_MEAL_PHOTOS_DIR.rglob("*.json"), reverse=True)
+    records: list[dict[str, Any]] = []
+    normalized_email = str(uploader_email or "").strip().lower()
+    for sidecar_path in matches:
+        if sidecar_path.name == HASH_INDEX_PATH.name:
+            continue
+        try:
+            record = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if str(record.get("uploader_email", "")).strip().lower() != normalized_email:
+            continue
+        records.append(record)
+        if len(records) >= max(1, limit):
+            break
+    records.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    return records
 
 
 def save_capture_record(record: dict[str, Any], *, sidecar_path: Path) -> None:

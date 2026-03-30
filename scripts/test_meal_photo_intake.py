@@ -51,6 +51,9 @@ class MealPhotoIntakeTests(unittest.TestCase):
         ]
         analysis = {
             "meal_confidence": "high",
+            "image_confidence": "high",
+            "portion_confidence": "medium",
+            "nutrition_confidence": "medium",
             "estimation_confidence": "high",
             "estimated_energy_kcal": 620,
             "quality_score": 72,
@@ -93,11 +96,18 @@ class MealPhotoIntakeTests(unittest.TestCase):
         self.assertTrue(draft["auto_commit_eligible"])
         self.assertEqual(draft["meal_type"], "lunch")
         self.assertEqual(draft["items"][0]["food_key"], "rice_cooked")
+        self.assertEqual(draft["meal_assessment"]["image_confidence"], "high")
+        self.assertEqual(draft["meal_assessment"]["portion_confidence"], "medium")
+        self.assertEqual(draft["meal_assessment"]["nutrition_confidence"], "medium")
+        self.assertEqual(draft["meal_assessment"]["estimation_confidence"], "medium")
 
     def test_normalize_analysis_to_draft_keeps_unknown_food_without_food_key(self) -> None:
         draft = common.normalize_analysis_to_draft(
             {
                 "meal_confidence": "medium",
+                "image_confidence": "medium",
+                "portion_confidence": "low",
+                "nutrition_confidence": "low",
                 "estimation_confidence": "low",
                 "estimated_energy_kcal": 300,
                 "quality_score": 55,
@@ -128,6 +138,7 @@ class MealPhotoIntakeTests(unittest.TestCase):
         self.assertFalse(draft["auto_commit_eligible"])
         self.assertNotIn("food_key", draft["items"][0])
         self.assertEqual(draft["items"][0]["quantity_source"], "unknown")
+        self.assertEqual(draft["meal_assessment"]["nutrition_confidence"], "low")
 
     def test_normalize_image_content_type_falls_back_to_filename(self) -> None:
         content_type = common.normalize_image_content_type(
@@ -157,7 +168,12 @@ class MealPhotoIntakeTests(unittest.TestCase):
                         "quantity_source": "unknown",
                     }
                 ],
-                "meal_assessment": {},
+                "meal_assessment": {
+                    "image_confidence": "medium",
+                    "portion_confidence": "low",
+                    "nutrition_confidence": "low",
+                    "estimation_confidence": "low",
+                },
             },
             capture_context={
                 "date": "2026-03-30",
@@ -168,6 +184,9 @@ class MealPhotoIntakeTests(unittest.TestCase):
         self.assertEqual(sanitized["date"], "2026-03-30")
         self.assertEqual(sanitized["time"], "10:39")
         self.assertEqual(sanitized["items"][0]["label"], "Saumon")
+        self.assertEqual(sanitized["meal_assessment"]["image_confidence"], "medium")
+        self.assertEqual(sanitized["meal_assessment"]["portion_confidence"], "low")
+        self.assertEqual(sanitized["meal_assessment"]["nutrition_confidence"], "low")
 
     def test_refresh_needs_retry_only_for_failed_or_missing_publish(self) -> None:
         self.assertTrue(
@@ -298,6 +317,38 @@ class MealPhotoIntakeTests(unittest.TestCase):
 
         self.assertFalse(second["duplicate"])
         self.assertEqual(second["capture_id"], "capture-b")
+
+    def test_list_capture_records_for_uploader_returns_recent_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_root = Path(tmp_dir)
+            raw_dir = temp_root / "data" / "raw" / "meal-photos" / "2026" / "03"
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            (raw_dir / "capture-a.json").write_text(json.dumps({
+                "capture_id": "capture-a",
+                "uploader_email": "authorized@example.com",
+                "updated_at": "2026-03-30T09:00:00+00:00",
+                "status": "needs_review",
+            }), encoding="utf-8")
+            (raw_dir / "capture-b.json").write_text(json.dumps({
+                "capture_id": "capture-b",
+                "uploader_email": "authorized@example.com",
+                "updated_at": "2026-03-30T10:00:00+00:00",
+                "status": "committed",
+            }), encoding="utf-8")
+            (raw_dir / "capture-c.json").write_text(json.dumps({
+                "capture_id": "capture-c",
+                "uploader_email": "other@example.com",
+                "updated_at": "2026-03-30T11:00:00+00:00",
+                "status": "failed",
+            }), encoding="utf-8")
+            with mock.patch.object(common, "RAW_MEAL_PHOTOS_DIR", temp_root / "data" / "raw" / "meal-photos"), mock.patch.object(
+                common,
+                "HASH_INDEX_PATH",
+                temp_root / "data" / "raw" / "meal-photos" / "hash-index.json",
+            ):
+                records = common.list_capture_records_for_uploader("authorized@example.com", limit=8)
+
+        self.assertEqual([record["capture_id"] for record in records], ["capture-b", "capture-a"])
 
 
 if __name__ == "__main__":

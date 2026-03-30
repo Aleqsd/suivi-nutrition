@@ -19,7 +19,10 @@ from meal_photo_intake_common import (
     file_lock,
     load_capture_record,
     load_food_reference,
+    load_profile_context,
+    load_recent_meal_labels,
     local_now,
+    list_capture_records_for_uploader,
     meal_photo_settings_from_env,
     normalize_confidence,
     normalize_image_content_type,
@@ -142,9 +145,23 @@ def sanitize_draft(raw_draft: dict, *, fallback_draft: dict, capture_context: di
                 1,
             ),
             "quality_score": int(max(0, min(100, int(coerce_float(meal_assessment.get("quality_score")) or coerce_float(source_assessment.get("quality_score")) or 0)))),
+            "image_confidence": normalize_confidence(
+                meal_assessment.get("image_confidence"),
+                default=source_assessment.get("image_confidence", fallback_draft.get("confidence", "medium")),
+            ),
+            "portion_confidence": normalize_confidence(
+                meal_assessment.get("portion_confidence"),
+                default=source_assessment.get("portion_confidence", fallback_draft.get("confidence", "medium")),
+            ),
+            "nutrition_confidence": normalize_confidence(
+                meal_assessment.get("nutrition_confidence"),
+                default=source_assessment.get("nutrition_confidence", source_assessment.get("estimation_confidence", "medium")),
+            ),
             "estimation_confidence": normalize_confidence(
                 meal_assessment.get("estimation_confidence"),
-                default=source_assessment.get("estimation_confidence", "medium"),
+                default=meal_assessment.get("nutrition_confidence")
+                or source_assessment.get("nutrition_confidence")
+                or source_assessment.get("estimation_confidence", "medium"),
             ),
             "recommendations": [
                 truncate_text(str(value).strip(), 120)
@@ -224,6 +241,14 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/__health":
             self._send_json({"ok": True})
+            return
+
+        if parsed.path == "/v1/meal-photo-intake":
+            query = parse_qs(parsed.query)
+            ticket = (query.get("ticket") or [""])[0]
+            limit = (query.get("limit") or ["8"])[0]
+            response = self._handle_history(ticket=ticket, limit=limit)
+            self._send_json(response.payload, status=response.status)
             return
 
         if parsed.path.startswith("/v1/meal-photo-intake/"):
@@ -355,6 +380,20 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
             return self._error("Accès refusé pour cette capture.", status=HTTPStatus.FORBIDDEN)
         return CaptureResponse(status=HTTPStatus.OK, payload=record_to_payload(record))
 
+    def _handle_history(self, *, ticket: str, limit: str) -> CaptureResponse:
+        try:
+            payload, _allowed_origin = self._verify_ticket(ticket)
+            limit_value = max(1, min(24, int(limit or "8")))
+        except ValueError as exc:
+            return self._error(str(exc), status=HTTPStatus.FORBIDDEN)
+        records = list_capture_records_for_uploader(str(payload.get("email", "")), limit=limit_value)
+        return CaptureResponse(
+            status=HTTPStatus.OK,
+            payload={
+                "captures": [record_to_payload(record) for record in records],
+            },
+        )
+
     def _handle_upload(self) -> CaptureResponse:
         try:
             settings = self._settings()
@@ -417,6 +456,8 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
             save_capture_record(record, sidecar_path=sidecar_path)
 
             food_reference = load_food_reference()
+            profile_context = load_profile_context()
+            recent_meal_labels = load_recent_meal_labels()
             analysis = analyze_meal_photo(
                 image_bytes,
                 filename=original_filename,
@@ -424,6 +465,9 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
                 model=settings.openai_meal_vision_model,
                 api_key=settings.openai_api_key,
                 food_reference=food_reference,
+                capture_context=capture_context,
+                profile=profile_context,
+                recent_meal_labels=recent_meal_labels,
             )
             draft = normalize_analysis_to_draft(analysis, capture_context=capture_context, food_reference=food_reference)
             record.update(

@@ -1590,6 +1590,10 @@ main { display: grid; gap: 28px; }
   align-content: start;
 }
 
+.capture-history-panel {
+  margin-top: 18px;
+}
+
 .capture-dropzone {
   display: grid;
   gap: 12px;
@@ -1651,10 +1655,57 @@ main { display: grid; gap: 28px; }
 .capture-actions,
 .capture-assessment,
 .capture-recommendations,
-.capture-summary-grid {
+.capture-summary-grid,
+.capture-quick-actions,
+.capture-confidence-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.capture-auto-note {
+  margin: 0;
+}
+
+.capture-confidence-grid {
+  margin-top: 4px;
+}
+
+.capture-confidence-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 36, 31, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--ink);
+}
+
+.capture-confidence-pill strong {
+  font-size: 0.82rem;
+}
+
+.capture-confidence-pill span:last-child {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.capture-confidence-pill[data-tone="high"] {
+  border-color: rgba(109, 143, 58, 0.25);
+  background: rgba(109, 143, 58, 0.08);
+}
+
+.capture-confidence-pill[data-tone="medium"] {
+  border-color: rgba(159, 91, 54, 0.2);
+  background: rgba(159, 91, 54, 0.08);
+}
+
+.capture-confidence-pill[data-tone="low"] {
+  border-color: rgba(134, 63, 63, 0.22);
+  background: rgba(134, 63, 63, 0.08);
 }
 
 .capture-review-form,
@@ -1702,6 +1753,10 @@ main { display: grid; gap: 28px; }
   resize: vertical;
 }
 
+.capture-quick-actions {
+  margin-top: 2px;
+}
+
 .capture-items-head {
   display: flex;
   align-items: center;
@@ -1721,6 +1776,43 @@ main { display: grid; gap: 28px; }
 }
 
 .capture-item-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.capture-history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.capture-history-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(28, 36, 31, 0.08);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.capture-history-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.capture-history-top h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.capture-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.capture-history-actions {
   display: flex;
   justify-content: flex-end;
 }

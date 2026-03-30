@@ -6,16 +6,16 @@
     <title>Atlas</title>
     <meta name="robots" content="noindex,nofollow,noarchive">
     <meta name="theme-color" content="#234b44">
-    <link rel="icon" href="../../icon-32.png?v=2026-03-30-09" sizes="32x32" type="image/png">
-    <link rel="apple-touch-icon" href="../../icon-192.png?v=2026-03-30-09">
-    <link rel="manifest" href="../../manifest.webmanifest?v=2026-03-30-09">
+    <link rel="icon" href="../../icon-32.png?v=2026-03-30-10" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="../../icon-192.png?v=2026-03-30-10">
+    <link rel="manifest" href="../../manifest.webmanifest?v=2026-03-30-10">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../../styles.css?v=2026-03-30-09">
+    <link rel="stylesheet" href="../../styles.css?v=2026-03-30-10">
     <script defer src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-    <script defer src="../../auth.js?v=2026-03-30-09"></script>
-    <script defer src="../../pwa.js?v=2026-03-30-09"></script>
+    <script defer src="../../auth.js?v=2026-03-30-10"></script>
+    <script defer src="../../pwa.js?v=2026-03-30-10"></script>
   </head>
   <body data-page="capture" data-auth-state="pending">
     <div class="page-shell">
@@ -60,6 +60,7 @@
                 <button class="auth-button" id="analyze-photo" type="button">Analyser la photo</button>
                 <span id="capture-status" class="capture-status-text">En attente d’une image.</span>
               </div>
+              <p class="capture-inline-note capture-auto-note" id="capture-auto-note">Si la photo arrive depuis le menu Partager Android, l’analyse démarre automatiquement.</p>
             </article>
 
             <article class="capture-panel capture-review-panel">
@@ -104,7 +105,23 @@
                   <textarea id="draft-source-text" name="source_text" rows="3"></textarea>
                 </label>
 
+                <div class="capture-quick-actions">
+                  <button class="utility-button utility-button-secondary" data-quick-action="meal-breakfast" type="button">Petit déj</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="meal-lunch" type="button">Déjeuner</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="meal-dinner" type="button">Dîner</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="meal-snack" type="button">Collation</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="portion-down" type="button">Portion -20%</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="portion-up" type="button">Portion +20%</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="add-missing-item" type="button">Aliment manquant</button>
+                  <button class="utility-button utility-button-secondary" data-quick-action="time-ok" type="button">Heure OK</button>
+                </div>
+
                 <div class="capture-assessment" id="draft-assessment"></div>
+
+                <label class="capture-field">
+                  <span>Notes de revue</span>
+                  <textarea id="draft-assessment-notes" name="assessment_notes" rows="2"></textarea>
+                </label>
 
                 <div class="capture-items-head">
                   <h3>Aliments retenus</h3>
@@ -119,6 +136,16 @@
               </form>
             </article>
           </div>
+
+          <article class="capture-panel capture-history-panel">
+            <div class="panel-header">
+              <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🕘</span><span>Dernières captures</span></h2>
+              <p id="capture-history-summary">Les brouillons et imports photo récents apparaissent ici.</p>
+            </div>
+            <div id="capture-history" class="capture-history-list">
+              <div class="empty-state">Aucune capture récente pour le moment.</div>
+            </div>
+          </article>
         </section>
       </main>
     </div>
@@ -169,6 +196,6 @@
       </article>
     </template>
 
-    <script src="../../capture.js?v=2026-03-30-09" type="module"></script>
+    <script src="../../capture.js?v=2026-03-30-10" type="module"></script>
   </body>
 </html>

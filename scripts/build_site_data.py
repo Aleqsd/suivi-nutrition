@@ -1310,6 +1310,9 @@ def build_recent_meals(food_reference: dict[str, dict]) -> list[dict]:
                 "assessment": {
                     "estimatedEnergyKcal": meal.get("estimated_energy_kcal", ""),
                     "qualityScore": meal.get("quality_score", ""),
+                    "imageConfidence": meal.get("image_confidence", ""),
+                    "portionConfidence": meal.get("portion_confidence", ""),
+                    "nutritionConfidence": meal.get("nutrition_confidence", ""),
                     "estimationConfidence": meal.get("estimation_confidence", ""),
                     "recommendations": [normalize_display_text(value) for value in recommendations],
                     "notes": normalize_display_text(meal.get("assessment_notes", "")),

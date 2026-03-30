@@ -1,7 +1,7 @@
 const pwaReady = ("serviceWorker" in navigator)
   ? window.addEventListener("load", async () => {
     try {
-      await navigator.serviceWorker.register("/sw.js?v=2026-03-30-09", { scope: "/" });
+      await navigator.serviceWorker.register("/sw.js?v=2026-03-30-10", { scope: "/" });
     } catch (error) {
       console.error("Service worker registration failed.", error);
     }
