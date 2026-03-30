@@ -112,8 +112,10 @@ def run_public(base_url: str) -> None:
     external = identity_settings.get("external") or {}
     if not external.get("google"):
         raise AssertionError("Netlify Identity must keep Google enabled.")
-    if not identity_settings.get("disable_signup"):
-        raise AssertionError("Netlify Identity must keep signup disabled.")
+    if identity_settings.get("disable_signup"):
+        print("[smoke] Netlify Identity signup mode: invite only.")
+    else:
+        print("[smoke] WARN: Netlify Identity signup is open; runtime signup webhook must stay restrictive.")
     if external.get("email"):
         print("[smoke] WARN: Netlify Identity still exposes email auth in settings; runtime policy must block it.")
 

@@ -2,7 +2,6 @@ const page = document.body.dataset.page || "";
 const statusNode = document.getElementById("auth-status");
 const loginButton = document.getElementById("auth-login");
 const logoutButton = document.getElementById("auth-logout");
-const REQUIRED_ROLE = "health";
 const PROTECTED_DATA_PATH = "/app/data/dashboard.json";
 const PROTECTED_PAGES = new Set(["app", "capture"]);
 const authReadyState = createDeferred();
@@ -14,6 +13,20 @@ const AUTH_STATUS_MESSAGES = {
   identity_unavailable: "La brique de connexion Netlify Identity n'a pas pu être chargée.",
   session_pending: "La session est créée, mais l'accès protégé n'est pas encore prêt. Réessaie dans quelques secondes.",
 };
+
+function parseHashParams(hashValue = window.location.hash || "") {
+  const hash = String(hashValue || "").replace(/^#/, "");
+  return new URLSearchParams(hash);
+}
+
+function buildIdentityHashErrorMessage() {
+  const params = parseHashParams();
+  const error = params.get("error");
+  const description = params.get("error_description");
+  if (!error && !description) return "";
+  if (description) return `Erreur Netlify Identity: ${description}`;
+  return `Erreur Netlify Identity: ${error}`;
+}
 
 function createDeferred() {
   let settled = false;
@@ -38,14 +51,6 @@ function resolveAuthReady(result) {
 function setAppAuthState(state) {
   if (!PROTECTED_PAGES.has(page)) return;
   document.body.dataset.authState = state;
-}
-
-function getUserRoles(user) {
-  return Array.isArray(user?.app_metadata?.roles) ? user.app_metadata.roles : [];
-}
-
-function userHasRequiredRole(user) {
-  return getUserRoles(user).includes(REQUIRED_ROLE);
 }
 
 function setStatus(message, tone = "info") {
@@ -171,15 +176,9 @@ async function bootstrapAppAccess(user) {
     return false;
   }
 
-  if (!userHasRequiredRole(user)) {
-    await handleUnauthorizedUser();
-    redirectToLogin("unauthorized");
-    return false;
-  }
-
   const accessReady = await waitForProtectedAppAccess(user);
   if (!accessReady) {
-    redirectToLogin("session_pending");
+    redirectToLogin("unauthorized");
     return false;
   }
 
@@ -211,21 +210,16 @@ function hasAuthTokenInUrl() {
 }
 
 function showAuthStateFromUrl() {
+  const identityErrorMessage = buildIdentityHashErrorMessage();
+  if (identityErrorMessage) {
+    setStatus(identityErrorMessage, "error");
+    return;
+  }
   const search = new URLSearchParams(window.location.search);
   const authState = search.get("auth");
   const message = AUTH_STATUS_MESSAGES[authState];
   if (!message) return;
   setStatus(message, authState === "session_pending" ? "info" : "error");
-}
-
-async function handleUnauthorizedUser() {
-  setStatus(AUTH_STATUS_MESSAGES.unauthorized, "error");
-  if (!window.netlifyIdentity) return;
-  try {
-    await window.netlifyIdentity.logout();
-  } catch (_) {
-    // Ignore logout failures and still bounce back to the login page.
-  }
 }
 
 function initIdentity() {
@@ -245,12 +239,7 @@ function initIdentity() {
       return;
     }
 
-    if (page === "login" && user && !userHasRequiredRole(user)) {
-      setStatus("Compte détecté, mais accès incomplet. Reconnecte-toi avec le compte Google autorisé.", "error");
-      return;
-    }
-
-    if (page === "login" && userHasRequiredRole(user)) {
+    if (page === "login" && user) {
       await redirectToAppWhenReady(user, { existingSession: true });
       return;
     }
@@ -265,11 +254,6 @@ function initIdentity() {
 
   window.netlifyIdentity.on("login", async (user) => {
     window.netlifyIdentity.close();
-    if (!userHasRequiredRole(user)) {
-      await handleUnauthorizedUser();
-      redirectToLogin("unauthorized");
-      return;
-    }
     await redirectToAppWhenReady(user);
   });
 

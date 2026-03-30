@@ -169,6 +169,52 @@ class MealPhotoIntakeTests(unittest.TestCase):
         self.assertEqual(sanitized["time"], "10:39")
         self.assertEqual(sanitized["items"][0]["label"], "Saumon")
 
+    def test_refresh_needs_retry_only_for_failed_or_missing_publish(self) -> None:
+        self.assertTrue(
+            service.refresh_needs_retry(
+                {"status": "committed", "refresh": {"status": "failed", "published": False}},
+                skip_publish=False,
+            )
+        )
+        self.assertTrue(
+            service.refresh_needs_retry(
+                {"status": "committed", "refresh": {}},
+                skip_publish=False,
+            )
+        )
+        self.assertFalse(
+            service.refresh_needs_retry(
+                {"status": "committed", "refresh": {"status": "done", "published": True}},
+                skip_publish=False,
+            )
+        )
+        self.assertFalse(
+            service.refresh_needs_retry(
+                {"status": "committed", "refresh": {"status": "done", "published": False}},
+                skip_publish=True,
+            )
+        )
+
+    def test_refresh_committed_record_persists_failure_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sidecar_path = Path(tmp_dir) / "capture.json"
+            record = {"status": "committed", "capture_id": "capture-a"}
+            with mock.patch.object(service, "run_refresh_pipeline", side_effect=RuntimeError("publish down")), mock.patch.object(
+                service,
+                "save_capture_record",
+            ) as save_record:
+                updated = service.refresh_committed_record(
+                    record,
+                    sidecar_path=sidecar_path,
+                    timezone_name="Europe/Paris",
+                    skip_publish=False,
+                )
+
+        self.assertEqual(updated["refresh"]["status"], "failed")
+        self.assertFalse(updated["refresh"]["published"])
+        self.assertIn("publish down", updated["refresh"]["error"])
+        self.assertEqual(save_record.call_count, 2)
+
     def test_store_photo_capture_deduplicates_by_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_root = Path(tmp_dir)

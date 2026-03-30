@@ -63,6 +63,32 @@ function setCommitStatus(message, tone = "info") {
   elements.commitStatus.dataset.tone = tone;
 }
 
+function setupReveal() {
+  const nodes = Array.from(document.querySelectorAll(".reveal"));
+  if (!nodes.length) return;
+  if (!("IntersectionObserver" in window)) {
+    nodes.forEach((node) => node.classList.add("is-visible"));
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.14 });
+  nodes.forEach((node) => observer.observe(node));
+}
+
+function setCommitAction(mode = "save") {
+  if (!elements.commitDraft) return;
+  elements.commitDraft.textContent = mode === "retry_refresh"
+    ? "Relancer la mise à jour du site"
+    : "Enregistrer le repas";
+  state.commitMode = mode;
+}
+
 function formatBytes(bytes) {
   const value = Number(bytes) || 0;
   if (value < 1024) return `${value} o`;
@@ -81,6 +107,7 @@ function setPreview(file) {
     state.previewUrl = "";
   }
   if (!file) {
+    elements.photoPreview.removeAttribute("src");
     elements.photoPreview.hidden = true;
     elements.photoPreviewEmpty.hidden = false;
     elements.photoMeta.innerHTML = "";
@@ -119,6 +146,47 @@ async function cleanupSharedFile(shareId) {
   await cache.delete(`${SHARE_META_PREFIX}${shareId}`);
 }
 
+async function parseApiResponse(response) {
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  const rawText = await response.text();
+  if (!rawText) return {};
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(rawText);
+    } catch (error) {
+      throw new Error(`Réponse JSON invalide (${response.status}).`);
+    }
+  }
+  return response.ok ? { message: rawText } : { error: rawText };
+}
+
+function getRefreshInfo(payload) {
+  return (payload && typeof payload.refresh === "object" && payload.refresh) ? payload.refresh : {};
+}
+
+function isPublishComplete(payload) {
+  const refresh = getRefreshInfo(payload);
+  return payload?.status === "committed" && refresh.status === "done" && refresh.published === true;
+}
+
+function isPublishFailed(payload) {
+  return payload?.status === "committed" && getRefreshInfo(payload).status === "failed";
+}
+
+function isCommitStoredOnly(payload) {
+  const refresh = getRefreshInfo(payload);
+  return payload?.status === "committed" && refresh.status === "done" && refresh.published === false;
+}
+
+function refreshLabel(payload) {
+  const refresh = getRefreshInfo(payload);
+  if (refresh.status === "done" && refresh.published === true) return "site mis à jour";
+  if (refresh.status === "done" && refresh.published === false) return "publication non lancée";
+  if (refresh.status === "failed") return "publication échouée";
+  if (refresh.status === "running") return "publication en cours";
+  return "publication inconnue";
+}
+
 async function getTicket(forceRefresh = false) {
   const now = Date.now();
   if (!forceRefresh && state.ticket && now < state.ticketExpiresAt - 10_000) {
@@ -136,7 +204,7 @@ async function getTicket(forceRefresh = false) {
       Accept: "application/json",
     },
   });
-  const payload = await response.json();
+  const payload = await parseApiResponse(response);
   if (!response.ok) throw new Error(payload.error || `Échec ticket upload (${response.status}).`);
 
   state.ticket = payload;
@@ -176,6 +244,7 @@ function renderAnalysisSummary(payload) {
       <div class="utility-meta">Confiance: ${escapeHtml(draft.confidence || "medium")}</div>
       <div class="utility-meta">kcal: ${escapeHtml(assessment.estimated_energy_kcal ?? "?")}</div>
       <div class="utility-meta">Score: ${escapeHtml(`${assessment.quality_score ?? "?"}/100`)}</div>
+      <div class="utility-meta">Publication: ${escapeHtml(refreshLabel(payload))}</div>
     </div>
     <p>${escapeHtml(draft.source_text || "Aucune description source.")}</p>
     <p>${escapeHtml(assessment.notes || "")}</p>
@@ -209,6 +278,7 @@ function buildItemRow(item = {}) {
 function renderDraftForm(draft) {
   state.draft = draft;
   elements.reviewForm.hidden = false;
+  setCommitAction("save");
   elements.reviewSummary.textContent = draft.auto_commit_eligible
     ? "La photo était assez nette pour un auto-commit, mais tu peux encore ajuster ce brouillon."
     : "L’analyse a produit un brouillon à valider avant écriture.";
@@ -225,6 +295,14 @@ function renderDraftForm(draft) {
   if (!(draft.items || []).length) {
     elements.draftItems.appendChild(buildItemRow());
   }
+}
+
+function renderRefreshRetryState(payload, message) {
+  renderDraftForm(payload.draft || {});
+  setCommitAction("retry_refresh");
+  elements.reviewSummary.textContent = "Le repas est déjà enregistré dans les imports privés. Le bouton relance uniquement la mise à jour du site.";
+  setStatus(message, "error");
+  setCommitStatus(getRefreshInfo(payload).error || "Relance la publication pour réessayer le rebuild du site.", "error");
 }
 
 function serializeDraft() {
@@ -270,7 +348,7 @@ async function uploadPhoto() {
       body: formData,
       mode: "cors",
     });
-    const payload = await response.json();
+    const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || `Upload refusé (${response.status}).`);
 
     state.captureId = payload.captureId || "";
@@ -278,9 +356,21 @@ async function uploadPhoto() {
     renderAnalysisSummary(payload);
 
     if (payload.captureId && payload.status === "committed") {
-      setStatus("Repas enregistré et site mis à jour.", "success");
-      setCommitStatus("Le repas a été ajouté automatiquement.", "success");
-      elements.reviewForm.hidden = true;
+      if (isPublishComplete(payload)) {
+        setStatus("Repas enregistré et site mis à jour.", "success");
+        setCommitStatus("Le repas a été ajouté automatiquement.", "success");
+        elements.reviewForm.hidden = true;
+      } else if (isPublishFailed(payload)) {
+        renderRefreshRetryState(payload, "Repas enregistré, mais la mise à jour du site a échoué.");
+      } else if (isCommitStoredOnly(payload)) {
+        setStatus("Repas enregistré. Publication du site non lancée.", "info");
+        setCommitStatus("Le repas a été écrit dans les imports privés.", "info");
+        elements.reviewForm.hidden = true;
+      } else {
+        setStatus("Repas enregistré. Vérifie l’état de publication du site.", "info");
+        setCommitStatus("Le repas est enregistré, mais le statut de publication reste incertain.", "info");
+        elements.reviewForm.hidden = true;
+      }
     } else {
       setStatus("Brouillon généré. Vérifie les aliments avant enregistrement.", "info");
       setCommitStatus("Le brouillon peut être ajusté puis enregistré.", "info");
@@ -302,14 +392,27 @@ async function refreshExistingCapture() {
     method: "GET",
     mode: "cors",
   });
-  const payload = await response.json();
+  const payload = await parseApiResponse(response);
   if (!response.ok) throw new Error(payload.error || `Chargement capture impossible (${response.status}).`);
   state.captureId = payload.captureId || captureId;
   renderAnalysisSummary(payload);
   if (payload.status === "committed") {
+    if (isPublishFailed(payload)) {
+      renderRefreshRetryState(payload, "Cette capture est enregistrée, mais la mise à jour du site a échoué.");
+      return;
+    }
     elements.reviewForm.hidden = true;
-    setStatus("Cette capture est déjà enregistrée.", "success");
-    setCommitStatus("Le repas a déjà été écrit dans les imports privés.", "success");
+    setCommitAction("save");
+    if (isPublishComplete(payload)) {
+      setStatus("Cette capture est déjà enregistrée.", "success");
+      setCommitStatus("Le repas a déjà été écrit et publié.", "success");
+    } else if (isCommitStoredOnly(payload)) {
+      setStatus("Cette capture est enregistrée. Publication du site non lancée.", "info");
+      setCommitStatus("Le repas existe dans les imports privés.", "info");
+    } else {
+      setStatus("Cette capture est déjà enregistrée.", "success");
+      setCommitStatus("Le repas a déjà été écrit dans les imports privés.", "success");
+    }
     return;
   }
   renderDraftForm(payload.draft || {});
@@ -323,7 +426,12 @@ async function commitDraft(event) {
     return;
   }
   const ticket = await getTicket(true);
-  setCommitStatus("Écriture du repas et rebuild du site en cours…", "info");
+  setCommitStatus(
+    state.commitMode === "retry_refresh"
+      ? "Relance de la mise à jour du site en cours…"
+      : "Écriture du repas et rebuild du site en cours…",
+    "info",
+  );
   elements.commitDraft.disabled = true;
 
   try {
@@ -338,12 +446,27 @@ async function commitDraft(event) {
         draft: serializeDraft(),
       }),
     });
-    const payload = await response.json();
+    const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || `Commit refusé (${response.status}).`);
     renderAnalysisSummary(payload);
-    elements.reviewForm.hidden = true;
-    setCommitStatus("Repas enregistré. Le dashboard a été régénéré.", "success");
-    setStatus("Repas photo enregistré avec succès.", "success");
+    if (isPublishComplete(payload)) {
+      elements.reviewForm.hidden = true;
+      setCommitAction("save");
+      setCommitStatus("Repas enregistré. Le dashboard a été régénéré.", "success");
+      setStatus("Repas photo enregistré avec succès.", "success");
+    } else if (isPublishFailed(payload)) {
+      renderRefreshRetryState(payload, "Le repas est enregistré, mais la mise à jour du site a échoué.");
+    } else if (isCommitStoredOnly(payload)) {
+      elements.reviewForm.hidden = true;
+      setCommitAction("save");
+      setCommitStatus("Repas enregistré dans les imports privés. Publication du site non lancée.", "info");
+      setStatus("Repas photo enregistré.", "success");
+    } else {
+      elements.reviewForm.hidden = true;
+      setCommitAction("save");
+      setCommitStatus("Repas enregistré. Vérifie l’état de publication du site.", "info");
+      setStatus("Repas photo enregistré.", "success");
+    }
   } finally {
     elements.commitDraft.disabled = false;
   }
@@ -383,7 +506,10 @@ function bindEvents() {
 }
 
 async function init() {
+  setupReveal();
   bindEvents();
+  setCommitAction("save");
+  setPreview(null);
   const authReady = window.__atlasAuthReady;
   if (authReady && typeof authReady.then === "function") {
     await authReady;

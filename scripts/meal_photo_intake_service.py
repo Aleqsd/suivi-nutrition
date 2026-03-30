@@ -34,6 +34,7 @@ from meal_photo_intake_common import (
     verify_intake_ticket,
     extract_photo_capture_context,
     coerce_float,
+    guess_extension,
     INTAKE_LOCK_PATH,
 )
 
@@ -175,6 +176,38 @@ def record_to_payload(record: dict) -> dict:
         "error": record.get("error", ""),
         "refresh": record.get("refresh", {}),
     }
+
+
+def refresh_needs_retry(record: dict, *, skip_publish: bool) -> bool:
+    if record.get("status") != "committed":
+        return False
+    refresh = record.get("refresh", {})
+    if not isinstance(refresh, dict) or not refresh:
+        return not skip_publish
+    refresh_status = str(refresh.get("status", "")).strip().lower()
+    if refresh_status == "failed":
+        return True
+    if refresh_status != "done":
+        return False
+    if skip_publish:
+        return False
+    return not bool(refresh.get("published"))
+
+
+def refresh_committed_record(record: dict, *, sidecar_path: Path, timezone_name: str, skip_publish: bool) -> dict:
+    refresh_result = {"status": "running", "published": False}
+    record["refresh"] = refresh_result
+    record["updated_at"] = local_now(timezone_name).isoformat(timespec="seconds")
+    save_capture_record(record, sidecar_path=sidecar_path)
+    try:
+        run_refresh_pipeline(skip_publish=skip_publish)
+        refresh_result = {"status": "done", "published": not skip_publish}
+    except Exception as exc:  # noqa: BLE001
+        refresh_result = {"status": "failed", "published": False, "error": truncate_text(str(exc), 220)}
+    record["refresh"] = refresh_result
+    record["updated_at"] = local_now(timezone_name).isoformat(timespec="seconds")
+    save_capture_record(record, sidecar_path=sidecar_path)
+    return record
 
 
 class IntakeRequestHandler(BaseHTTPRequestHandler):
@@ -347,15 +380,17 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
             capture_id = generate_capture_id()
 
             temp_dir = Path.cwd() / "tmp"
-            temp_image_path = temp_dir / Path(original_filename).name
+            temp_image_path = temp_dir / f"{capture_id}{guess_extension(original_filename, content_type)}"
             temp_dir.mkdir(parents=True, exist_ok=True)
-            temp_image_path.write_bytes(image_bytes)
-            capture_context = extract_photo_capture_context(
-                temp_image_path,
-                shared_at=shared_at,
-                timezone_name=settings.timezone_name,
-            )
-            temp_image_path.unlink(missing_ok=True)
+            try:
+                temp_image_path.write_bytes(image_bytes)
+                capture_context = extract_photo_capture_context(
+                    temp_image_path,
+                    shared_at=shared_at,
+                    timezone_name=settings.timezone_name,
+                )
+            finally:
+                temp_image_path.unlink(missing_ok=True)
 
             stored_result = store_photo_capture(
                 capture_id=capture_id,
@@ -408,16 +443,17 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
                     raw_photo_relative_path=record["raw_photo_path"],
                     timezone_name=settings.timezone_name,
                 )
-                refresh_result = {"status": "running", "published": False}
-                try:
-                    run_refresh_pipeline(skip_publish=settings.skip_publish)
-                    refresh_result = {"status": "done", "published": not settings.skip_publish}
-                except Exception as exc:  # noqa: BLE001
-                    refresh_result = {"status": "failed", "published": False, "error": truncate_text(str(exc), 220)}
-                record["refresh"] = refresh_result
                 record["status"] = "committed"
                 record["import_path"] = import_path.relative_to(ROOT).as_posix()
-            save_capture_record(record, sidecar_path=sidecar_path)
+                save_capture_record(record, sidecar_path=sidecar_path)
+                record = refresh_committed_record(
+                    record,
+                    sidecar_path=sidecar_path,
+                    timezone_name=settings.timezone_name,
+                    skip_publish=settings.skip_publish,
+                )
+            else:
+                save_capture_record(record, sidecar_path=sidecar_path)
             return CaptureResponse(status=HTTPStatus.OK, payload=record_to_payload(record))
         except Exception as exc:  # noqa: BLE001
             if "sidecar_path" in locals():
@@ -443,38 +479,38 @@ class IntakeRequestHandler(BaseHTTPRequestHandler):
                 if record.get("uploader_email") != ticket_payload.get("email"):
                     return self._error("Accès refusé pour cette capture.", status=HTTPStatus.FORBIDDEN)
                 if record.get("status") == "committed":
-                    return CaptureResponse(status=HTTPStatus.OK, payload=record_to_payload(record))
-                sanitized_draft = sanitize_draft(
-                    body.get("draft", {}),
-                    fallback_draft=record.get("draft", {}),
-                    capture_context=record.get("capture_context", {}),
-                )
-                import_path = persist_import_document(
-                    capture_id=capture_id,
-                    draft=sanitized_draft,
-                    raw_photo_relative_path=record.get("raw_photo_path", ""),
-                    timezone_name=settings.timezone_name,
-                )
-                record.update(
-                    {
-                        "status": "committed",
-                        "updated_at": local_now(settings.timezone_name).isoformat(timespec="seconds"),
-                        "draft": sanitized_draft,
-                        "import_path": import_path.relative_to(ROOT).as_posix(),
-                    }
-                )
-                save_capture_record(record, sidecar_path=(ROOT / str(record["raw_photo_path"])).with_suffix(".json"))
+                    if not refresh_needs_retry(record, skip_publish=settings.skip_publish):
+                        return CaptureResponse(status=HTTPStatus.OK, payload=record_to_payload(record))
+                    sidecar_path = (ROOT / str(record["raw_photo_path"])).with_suffix(".json")
+                else:
+                    sanitized_draft = sanitize_draft(
+                        body.get("draft", {}),
+                        fallback_draft=record.get("draft", {}),
+                        capture_context=record.get("capture_context", {}),
+                    )
+                    import_path = persist_import_document(
+                        capture_id=capture_id,
+                        draft=sanitized_draft,
+                        raw_photo_relative_path=record.get("raw_photo_path", ""),
+                        timezone_name=settings.timezone_name,
+                    )
+                    record.update(
+                        {
+                            "status": "committed",
+                            "updated_at": local_now(settings.timezone_name).isoformat(timespec="seconds"),
+                            "draft": sanitized_draft,
+                            "import_path": import_path.relative_to(ROOT).as_posix(),
+                        }
+                    )
+                    sidecar_path = (ROOT / str(record["raw_photo_path"])).with_suffix(".json")
+                    save_capture_record(record, sidecar_path=sidecar_path)
 
-            refresh_result = {"status": "running", "published": False}
-            try:
-                run_refresh_pipeline(skip_publish=settings.skip_publish)
-                refresh_result = {"status": "done", "published": not settings.skip_publish}
-            except Exception as exc:  # noqa: BLE001
-                refresh_result = {"status": "failed", "published": False, "error": truncate_text(str(exc), 220)}
-            finally:
-                record["refresh"] = refresh_result
-                save_capture_record(record, sidecar_path=(ROOT / str(record["raw_photo_path"])).with_suffix(".json"))
-
+            record = refresh_committed_record(
+                record,
+                sidecar_path=sidecar_path,
+                timezone_name=settings.timezone_name,
+                skip_publish=settings.skip_publish,
+            )
             return CaptureResponse(status=HTTPStatus.OK, payload=record_to_payload(record))
         except FileNotFoundError:
             return self._error("Capture inconnue.", status=HTTPStatus.NOT_FOUND)

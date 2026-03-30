@@ -33,3 +33,6 @@ data/derived/**
 !data/derived/.gitkeep
 site/app/data/dashboard.json
 !site/app/data/.gitkeep
+
+# Local Netlify folder
+.netlify

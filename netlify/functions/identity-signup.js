@@ -1,17 +1,20 @@
 const {
   forbiddenResponse,
-  isAllowedIdentity,
-  jsonResponse,
+  isAllowedEmail,
+  getIdentity,
   parseEventUser,
-  withHealthRole,
 } = require("./_auth_policy");
 
 exports.handler = async (event) => {
   const user = parseEventUser(event);
 
-  if (!isAllowedIdentity(user)) {
-    return forbiddenResponse("Compte ou fournisseur non autorise.");
+  // External-provider signup payloads are not consistent enough to enforce a
+  // provider check here. Restrict by email when present and let validate/login
+  // apply the health role.
+  const { email } = getIdentity(user);
+  if (email && !isAllowedEmail(user)) {
+    return forbiddenResponse("Seule l'adresse Google autorisee peut creer un compte.");
   }
 
-  return jsonResponse(200, withHealthRole(user));
+  return { statusCode: 204 };
 };

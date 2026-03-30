@@ -56,15 +56,38 @@ async function main() {
   const validateWrongEmail = await invoke(validate, disallowedEmailUser);
   assert.equal(validateWrongEmail.statusCode, 403);
 
-  const validateWrongProvider = await invoke(validate, disallowedProviderUser);
-  assert.equal(validateWrongProvider.statusCode, 403);
+  const validateSoftAllowedProvider = await invoke(validate, disallowedProviderUser);
+  assert.equal(validateSoftAllowedProvider.statusCode, 200);
+  assert.deepEqual(parseJsonBody(validateSoftAllowedProvider).app_metadata.roles, ["health"]);
 
   const signupAllowed = await invoke(signup, allowedUser);
-  assert.equal(signupAllowed.statusCode, 200);
-  assert.deepEqual(parseJsonBody(signupAllowed).app_metadata.roles, ["health"]);
+  assert.equal(signupAllowed.statusCode, 204);
+
+  const signupNestedPayload = await signup({
+    body: JSON.stringify({
+      payload: {
+        email: allowedEmail,
+        app_metadata: {},
+        identities: [{ provider: "google" }],
+      },
+    }),
+  });
+  assert.equal(signupNestedPayload.statusCode, 204);
+
+  const signupWrongEmail = await invoke(signup, disallowedEmailUser);
+  assert.equal(signupWrongEmail.statusCode, 403);
 
   const signupDenied = await invoke(signup, disallowedProviderUser);
-  assert.equal(signupDenied.statusCode, 403);
+  assert.equal(signupDenied.statusCode, 204);
+
+  const signupUnknownShape = await signup({
+    body: JSON.stringify({
+      payload: {
+        app_metadata: {},
+      },
+    }),
+  });
+  assert.equal(signupUnknownShape.statusCode, 204);
 
   const loginAllowed = await invoke(login, {
     ...allowedUser,
@@ -78,6 +101,17 @@ async function main() {
 
   const loginDenied = await invoke(login, disallowedEmailUser);
   assert.equal(loginDenied.statusCode, 403);
+
+  const loginSoftAllowedProvider = await invoke(login, disallowedProviderUser);
+  assert.equal(loginSoftAllowedProvider.statusCode, 200);
+
+  const loginWithoutProvider = await invoke(login, {
+    email: allowedEmail,
+    app_metadata: {
+      roles: ["health"],
+    },
+  });
+  assert.equal(loginWithoutProvider.statusCode, 200);
 
   console.log("Identity function policy OK");
 }

@@ -1,6 +1,6 @@
 const {
   forbiddenResponse,
-  isAllowedIdentity,
+  isAllowedEmail,
   jsonResponse,
   parseEventUser,
   withHealthRole,
@@ -9,7 +9,7 @@ const {
 exports.handler = async (event) => {
   const user = parseEventUser(event);
 
-  if (!isAllowedIdentity(user)) {
+  if (!isAllowedEmail(user)) {
     return forbiddenResponse("Connexion reservee au compte Google autorise.");
   }
 

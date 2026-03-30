@@ -41,7 +41,7 @@ exports.handler = async (event, context) => {
   }
 
   const user = getContextUser(context);
-  if (!isAllowedIdentity(user)) {
+  if (!isAllowedIdentity(user, { allowMissingProvider: true })) {
     return forbiddenResponse("Connexion reservee au compte Google autorise.");
   }
 
