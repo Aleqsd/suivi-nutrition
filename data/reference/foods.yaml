@@ -118,6 +118,56 @@
     unit: "g"
     portion_text: "1 portion"
 
+- key: "roasted_potato"
+  label: "Pommes de terre roties"
+  category: "starch"
+  icon: "🥔"
+  default_unit: "g"
+  default_portion:
+    quantity: 150
+    unit: "g"
+    portion_text: "1 accompagnement"
+
+- key: "sweet_potato_roasted"
+  label: "Patate douce rotie"
+  category: "starch"
+  icon: "🍠"
+  default_unit: "g"
+  default_portion:
+    quantity: 120
+    unit: "g"
+    portion_text: "1 accompagnement"
+
+- key: "aioli"
+  label: "Aioli"
+  category: "fat"
+  icon: "🧄"
+  default_unit: "g"
+  default_portion:
+    quantity: 15
+    unit: "g"
+    portion_text: "1 cuillere a soupe"
+
+- key: "strawberry"
+  label: "Fraise"
+  category: "fruit"
+  icon: "🍓"
+  default_unit: "g"
+  default_portion:
+    quantity: 90
+    unit: "g"
+    portion_text: "6 fraises"
+
+- key: "whipped_cream"
+  label: "Chantilly"
+  category: "dairy"
+  icon: "🍦"
+  default_unit: "g"
+  default_portion:
+    quantity: 15
+    unit: "g"
+    portion_text: "1 petite cuillere"
+
 - key: "rice_cooked"
   label: "Riz cuit"
   category: "starch"
