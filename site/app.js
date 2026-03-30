@@ -2,6 +2,7 @@ const state = {
   dashboard: null,
   nutritionScope: "all",
   nutritionWindowDays: "30",
+  mealTypeFilter: "all",
   mealsPage: 1,
   foodsPage: 1,
   foodSort: "occurrence",
@@ -567,9 +568,11 @@ function renderRecentMeals(data) {
   const container = document.getElementById("recent-meals");
   const pagination = document.getElementById("recent-meals-pagination");
   const windowDays = Number(state.nutritionWindowDays) || 30;
+  const mealTypeFilter = state.mealTypeFilter || "all";
   const range = getWindowDateRange(data, windowDays);
   const meals = filterByWindowDate(data.recentMeals || [], "date", windowDays, range.endDate)
     .filter((meal) => meal && meal.date)
+    .filter((meal) => mealTypeFilter === "all" || meal.mealType === mealTypeFilter)
     .sort((a, b) => parseDateText(b.date) - parseDateText(a.date));
   container.innerHTML = "";
   if (pagination) pagination.innerHTML = "";
@@ -1138,7 +1141,25 @@ function syncSectionControlsState() {
   const sortButtons = document.querySelectorAll('[data-control="food-sort"] .toolbar-button[data-food-sort]');
   const activeSort = state.foodSort || "occurrence";
   sortButtons.forEach((button) => {
-    const isActive = button.dataset.foodSort === activeSort;
+      const isActive = button.dataset.foodSort === activeSort;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  const sortDirectionButtons = document.querySelectorAll(
+    '[data-control="food-sort-direction"] .toolbar-button[data-food-sort-direction]'
+  );
+  const activeSortDirection = state.foodSortDirection || "desc";
+  sortDirectionButtons.forEach((button) => {
+    const isActive = button.dataset.foodSortDirection === activeSortDirection;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  const mealTypeButtons = document.querySelectorAll('[data-control="meal-type"] .toolbar-button[data-meal-type]');
+  const activeMealType = state.mealTypeFilter || "all";
+  mealTypeButtons.forEach((button) => {
+    const isActive = button.dataset.mealType === activeMealType;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
@@ -1169,16 +1190,37 @@ function setupSectionControls() {
     button.addEventListener("click", () => {
       const sortMode = button.dataset.foodSort;
       if (!sortMode) return;
-      if (state.foodSort === sortMode) {
-        state.foodSortDirection = state.foodSortDirection === "desc" ? "asc" : "desc";
-      } else {
-        state.foodSort = sortMode;
-        state.foodSortDirection = "desc";
+      state.foodSort = sortMode;
+      state.foodsPage = 1;
+      syncSectionControlsState();
+      if (!state.dashboard) return;
+      renderFoodTable(state.dashboard);
+    });
+  });
+
+  document.querySelectorAll('.toolbar-button[data-food-sort-direction]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const sortDirection = button.dataset.foodSortDirection;
+      if (!sortDirection) return;
+      if (sortDirection === "asc" || sortDirection === "desc") {
+        state.foodSortDirection = sortDirection;
       }
       state.foodsPage = 1;
       syncSectionControlsState();
       if (!state.dashboard) return;
       renderFoodTable(state.dashboard);
+    });
+  });
+
+  document.querySelectorAll('.toolbar-button[data-meal-type]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const mealType = button.dataset.mealType;
+      if (!mealType) return;
+      state.mealTypeFilter = mealType;
+      state.mealsPage = 1;
+      syncSectionControlsState();
+      if (!state.dashboard) return;
+      renderRecentMeals(state.dashboard);
     });
   });
 }
