@@ -1160,6 +1160,47 @@ function buildProfileQuickStatRows(data) {
   ];
 }
 
+function renderDailySteps(data) {
+  const target = document.getElementById("steps-by-day");
+  if (!target) return;
+
+  const rows = (data && Array.isArray(data.stepsByDay) ? data.stepsByDay : [])
+    .map((row) => ({
+      date: String(row?.date || ""),
+      steps: parseNumeric(row?.steps),
+      source: String(row?.source || "").trim(),
+    }))
+    .filter((row) => row.date && row.steps !== null)
+    .sort((a, b) => {
+      const aDate = parseDateText(a.date);
+      const bDate = parseDateText(b.date);
+      if (!aDate || !bDate) return 0;
+      return bDate.getTime() - aDate.getTime();
+    });
+
+  if (!rows.length) {
+    target.innerHTML = `<div class="empty-state">Aucune donnée de pas disponible.</div>`;
+    return;
+  }
+
+  target.innerHTML = rows
+    .map((row) => {
+      const dateLabel = formatShortDate(row.date);
+      const steps = Number.isInteger(row.steps) ? `${row.steps} pas` : `${row.steps} pas`;
+      const source = row.source === "seed" ? "initialisation" : row.source || "source inconnue";
+      return `
+        <article class="steps-entry">
+          <div class="steps-entry-main">
+            <span class="steps-entry-date">${escapeHtml(dateLabel)}</span>
+            <span class="steps-entry-source">${escapeHtml(source)}</span>
+          </div>
+          <span class="steps-entry-count">${escapeHtml(steps)}</span>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function renderProfileQuickStats(data) {
   const target = document.getElementById("profile-quick-stats");
   if (!target) return;
@@ -1293,6 +1334,7 @@ function renderDocuments(data) {
 function renderApp(data) {
   renderFreshness(data);
   renderFoodTable(data);
+  renderDailySteps(data);
   renderProfileQuickStats(data);
   renderSignals(data);
   renderNutritionBalance(data);

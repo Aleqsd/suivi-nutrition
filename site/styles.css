@@ -270,7 +270,7 @@ body::before {
   line-height: 1.3;
 }
 
-.hero, .signal-strip, .meal-showcase, .two-column, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents {
+.hero, .signal-strip, .meal-showcase, .two-column, .steps-section, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -365,7 +365,7 @@ body::before {
 .hero-stat span { display: block; margin-top: 8px; font-size: 0.9rem; }
 
 main { display: grid; gap: 28px; }
-.signal-strip, .meal-showcase, .two-column, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents { padding: 26px; }
+.signal-strip, .meal-showcase, .two-column, .steps-section, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents { padding: 26px; }
 .signal-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .signal-pill[data-tone="caution"] { background: rgba(159, 91, 54, 0.1); color: var(--caution); }
 .signal-pill[data-tone="anchor"] { background: rgba(35, 75, 68, 0.1); color: var(--anchor); }
@@ -399,6 +399,47 @@ main { display: grid; gap: 28px; }
   max-width: 46ch;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.steps-list {
+  display: grid;
+  gap: 10px;
+}
+
+.steps-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(28, 36, 31, 0.12);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.steps-entry-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.steps-entry-date {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.steps-entry-source {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.steps-entry-count {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--anchor);
 }
 
 .nutrition-scope-tabs {
@@ -658,7 +699,7 @@ main { display: grid; gap: 28px; }
   transition: width 240ms ease;
 }
 
-.meal-showcase, .two-column, .timeline-layout, .diet-layout, .documents, .lab-section, .focus-layout, .data-stage { display: grid; gap: 22px; }
+.meal-showcase, .two-column, .steps-section, .timeline-layout, .diet-layout, .documents, .lab-section, .focus-layout, .data-stage { display: grid; gap: 22px; }
 .two-column { grid-template-columns: 320px minmax(0, 1fr); }
 .section-head { display: grid; gap: 10px; align-content: start; }
 .section-head h2 { font-size: clamp(1.85rem, 3vw, 3rem); max-width: 12ch; }
@@ -1409,7 +1450,7 @@ main { display: grid; gap: 28px; }
 
 @media (max-width: 980px) {
   .auth-hero,
-  .hero, .two-column, .focus-grid, .stage-grid { grid-template-columns: 1fr; }
+  .hero, .two-column, .steps-section, .focus-grid, .stage-grid { grid-template-columns: 1fr; }
   .hero { min-height: auto; }
   .section-head h2 { max-width: none; }
   .nutrition-balance-head,
@@ -1436,7 +1477,7 @@ main { display: grid; gap: 28px; }
 
 @media (max-width: 640px) {
   .page-shell { width: min(100vw - 18px, 1180px); padding-top: 10px; padding-bottom: 26px; }
-  .hero, .signal-strip, .meal-showcase, .two-column, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents { padding: 18px; border-radius: 22px; }
+  .hero, .signal-strip, .meal-showcase, .two-column, .steps-section, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents { padding: 18px; border-radius: 22px; }
   .hero h1 { font-size: clamp(2.2rem, 13vw, 3.8rem); }
   .hero-stats, .meal-card-grid, .summary-stack, .lab-grid, .mini-lab-grid, .document-list { grid-template-columns: 1fr; }
   .meal-pagination,

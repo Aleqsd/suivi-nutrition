@@ -342,6 +342,41 @@ def load_daily_summaries() -> list[dict]:
     return rows
 
 
+def build_steps_by_day() -> list[dict]:
+    steps_dir = DERIVED_DIR / "steps_by_day"
+    rows: dict[str, dict[str, object]] = {}
+
+    if steps_dir.exists():
+        for path in sorted(steps_dir.glob("*.csv")):
+            for row in read_csv(path):
+                parsed = parse_iso_date(row.get("date"))
+                if not parsed:
+                    continue
+                raw_steps = parse_numeric(row.get("steps"))
+                if raw_steps is None:
+                    raw_steps = parse_numeric(row.get("count"))
+                if raw_steps is None:
+                    continue
+                steps_value = int(raw_steps) if raw_steps.is_integer() else raw_steps
+                rows[str(parsed)] = {
+                    "date": str(parsed),
+                    "steps": steps_value,
+                    "source": normalize_display_text(row.get("source", "")),
+                }
+
+    if rows:
+        return sorted(rows.values(), key=lambda item: item["date"], reverse=True)
+
+    reference_date = datetime.now(ZoneInfo("Europe/Paris")).date()
+    return [
+        {
+            "date": str(reference_date - timedelta(days=1)),
+            "steps": 500,
+            "source": "seed",
+        }
+    ]
+
+
 def load_food_frequency() -> list[dict]:
     rows: list[dict] = []
     freq_dir = DERIVED_DIR / "food_frequency"
@@ -1353,6 +1388,7 @@ def build_dashboard_site_data() -> dict:
         "profileSummary": build_profile_summary(profile),
         "profile": normalize_display_value(profile),
         "referenceSections": reference_sections,
+        "stepsByDay": build_steps_by_day(),
         "monthlySummaries": load_monthly_summaries(),
         "dailySummaries": load_daily_summaries(),
         "latestLabDate": latest_lab_date,
