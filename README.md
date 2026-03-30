@@ -126,16 +126,20 @@ Ce mode:
 ## Hebergement VPS + Netlify
 
 - le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard regenere sur le VPS puis publie vers Netlify
-- le site Netlify dedie est `sante-zqsdev`
-- le domaine public vise est `https://sante.zqsdev.com`
+- le site Netlify dedie est configuré côté pipeline (`NETLIFY_SITE_ID`)
+- le domaine public cible est `PUBLIC_BASE_URL`
 - chaque push sur `main` declenche une synchronisation `rsync` vers `ovh`, l execution du pipeline distant commun, puis une publication Netlify
 - la page publique `/` sert uniquement de porte d entree de connexion
 - le dashboard et les donnees structurees sont servis sous `/app/`
 - le contenu sensible doit etre protege par Netlify Identity en `Invite only`, fournisseur Google, avec un role `health`
 - le workflow GitHub attend les secrets:
   - `OVH_SSH_KEY`
+  - `VPS_HOST` (optionnel, fallback: `ovh`/IP historique dans la config)
   - `NETLIFY_AUTH_TOKEN`
   - `NETLIFY_SITE_ID`
+  - `PUBLIC_BASE_URL`
+  - `ALLOWED_EMAIL`
+- la gestion d'autorisation Netlify se base sur `ALLOWED_EMAIL` (et `ALLOWED_PROVIDER=google` par défaut)
 - deploiement manuel de secours depuis Windows:
 
 ```powershell

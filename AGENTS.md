@@ -197,24 +197,24 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
   - synchroniser le code via `rsync --delete` avec le fichier partage `scripts/deploy_rsync.rules`
   - synchroniser les donnees privees utiles sans propager les suppressions locales
   - executer `APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/run_vps_deploy_pipeline.sh` avec `NETLIFY_SITE_ID` et `NETLIFY_AUTH_TOKEN`
-  - executer ensuite `python scripts/smoke_test_site.py public --base-url https://sante.zqsdev.com`
+  - executer ensuite `python scripts/smoke_test_site.py public --base-url $PUBLIC_BASE_URL`
   - verifier enfin `python3 scripts/smoke_test_site.py vps --base-url http://127.0.0.1:43817/site` sur le VPS
 - Les changements de `data/reference/foods.yaml` y compris les icones et emojis sont deja inclus dans la synchro code et doivent donc etre republies a chaque execution de `scripts/deploy_to_ovh.ps1`.
 - Toute mecanique de deploiement doit preserver les donnees deja presentes sur le VPS. Ne pas remplacer ni supprimer les journaux, PDF, profils prives ou artefacts derives distants par un checkout Git vide.
 
 ## Variante VPS via Netlify
 
-- Si l utilisateur veut exposer le dashboard sur `sante.zqsdev.com`, utiliser Netlify DNS et un site Netlify dedie plutot qu un tunnel Cloudflare.
+- Si l utilisateur veut exposer le dashboard en production, utiliser Netlify DNS et un site Netlify dedie plutot qu un tunnel Cloudflare.
 - La publication doit partir du VPS apres regeneration des donnees pour eviter de pousser les donnees privees vers GitHub.
 - Le site Netlify cible peut etre mis a jour via `scripts/deploy_netlify_from_vps.sh`.
-- Le site Netlify de production utilise actuellement le nom `sante-zqsdev` pour le domaine `https://sante.zqsdev.com`.
+- Le site Netlify de production est identifie par `NETLIFY_SITE_ID`, et le domaine public par `PUBLIC_BASE_URL`.
 - La racine publique du site doit rester une porte d entree de connexion.
 - Le dashboard et les donnees derivees doivent vivre sous `/app/`.
 - Les redirects Netlify doivent reserver `/app/*` au role `health`.
 - L acces cible doit etre configure en Netlify Identity:
   - registration `Invite only`
   - fournisseur externe `Google`
-  - seul `aleqsd@gmail.com` doit etre invite
+  - seul l'adresse définie dans `ALLOWED_EMAIL` doit pouvoir etre invitée
   - l utilisateur Identity invite doit recevoir le role `health`
 - La page publique `/` doit rester une page de connexion Netlify Identity.
 - Le dashboard authentifie doit vivre sous `/app/`.

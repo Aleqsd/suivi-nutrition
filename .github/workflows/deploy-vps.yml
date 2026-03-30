@@ -13,6 +13,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER || 'ubuntu' }}
+      VPS_REMOTE_DIR: /home/ubuntu/GitHub/suivi-nutrition
+      PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
 
     steps:
       - name: Checkout repository
@@ -24,20 +29,32 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.OVH_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 51.68.45.129 >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Validate required deployment variables
+        shell: bash
+        run: |
+          if [[ -z "$VPS_HOST" ]]; then
+            echo "Missing required variable VPS_HOST." >&2
+            exit 1
+          fi
+          if [[ -z "$PUBLIC_BASE_URL" ]]; then
+            echo "Missing required variable PUBLIC_BASE_URL." >&2
+            exit 1
+          fi
 
       - name: Sync code to the VPS
         shell: bash
         run: |
-          ssh ubuntu@51.68.45.129 "mkdir -p /home/ubuntu/GitHub/suivi-nutrition"
-          rsync -az --delete --itemize-changes --filter='merge scripts/deploy_rsync.rules' ./ ubuntu@51.68.45.129:/home/ubuntu/GitHub/suivi-nutrition/
+          ssh "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_REMOTE_DIR"
+          rsync -az --delete --itemize-changes --filter='merge scripts/deploy_rsync.rules' ./ "$VPS_USER@$VPS_HOST:$VPS_REMOTE_DIR/"
 
       - name: Run unified pipeline on the VPS
         shell: bash
         run: |
-          ssh ubuntu@51.68.45.129 \
-            "cd /home/ubuntu/GitHub/suivi-nutrition && \
-             APP_DIR=/home/ubuntu/GitHub/suivi-nutrition \
+          ssh "$VPS_USER@$VPS_HOST" \
+            "cd \"$VPS_REMOTE_DIR\" && \
+             APP_DIR=\"$VPS_REMOTE_DIR\" \
              DEPLOY_MODE=standard \
              NETLIFY_SITE_ID='${{ secrets.NETLIFY_SITE_ID }}' \
              NETLIFY_AUTH_TOKEN='${{ secrets.NETLIFY_AUTH_TOKEN }}' \
@@ -47,11 +64,11 @@ jobs:
       - name: Smoke test public site
         shell: bash
         run: |
-          python3 scripts/smoke_test_site.py public --base-url https://sante.zqsdev.com
+          python3 scripts/smoke_test_site.py public --base-url "$PUBLIC_BASE_URL"
 
       - name: Smoke test VPS dashboard
         shell: bash
         run: |
-          ssh ubuntu@51.68.45.129 \
-            "cd /home/ubuntu/GitHub/suivi-nutrition && \
+          ssh "$VPS_USER@$VPS_HOST" \
+            "cd \"$VPS_REMOTE_DIR\" && \
              python3 scripts/smoke_test_site.py vps --base-url http://127.0.0.1:43817/site"

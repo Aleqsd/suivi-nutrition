@@ -1,8 +1,8 @@
 param(
-  [string]$RemoteHost = "ovh",
+  [string]$RemoteHost = $env:OVH_HOST,
   [string]$RemoteDir = "/home/ubuntu/GitHub/suivi-nutrition",
-  [string]$PublicBaseUrl = "https://sante.zqsdev.com",
-  [string]$NetlifySiteId = "45e50336-c138-40cf-83e6-4afd7d5eeba8",
+  [string]$PublicBaseUrl = $env:PUBLIC_BASE_URL,
+  [string]$NetlifySiteId = $env:NETLIFY_SITE_ID,
   [ValidateSet("standard", "fast")]
   [string]$Mode = "standard",
   [switch]$SkipPrivateDataSync,
@@ -16,6 +16,13 @@ Set-StrictMode -Version Latest
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $RsyncFilterFile = "scripts/deploy_rsync.rules"
 $WslSshExe = "/mnt/c/Windows/System32/OpenSSH/ssh.exe"
+
+if (-not $RemoteHost) {
+  $RemoteHost = "ovh"
+}
+if (-not $PublicBaseUrl) {
+  throw "Missing public base URL. Set -PublicBaseUrl or PUBLIC_BASE_URL."
+}
 
 function Get-DeployModeDescription {
   param([Parameter(Mandatory = $true)][string]$CurrentMode)
@@ -187,6 +194,10 @@ function Run-RemotePipeline {
   $skipPublishFlag = if ($SkipPublish) { "1" } else { "0" }
   $deployMessage = Escape-SingleQuotedShellValue "Manual deploy from local workspace"
   $deployMode = Escape-SingleQuotedShellValue $Mode
+
+  if (-not $SkipPublish -and -not $NetlifySiteId) {
+    throw "Missing Netlify site id. Set -NetlifySiteId or NETLIFY_SITE_ID."
+  }
 
   $envParts = @(
     "APP_DIR='$RemoteDir'",

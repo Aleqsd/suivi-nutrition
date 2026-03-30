@@ -1,5 +1,5 @@
-const ALLOWED_EMAIL = "aleqsd@gmail.com";
-const ALLOWED_PROVIDER = "google";
+const ALLOWED_EMAIL = String(process.env.ALLOWED_EMAIL || process.env.AUTHORIZED_EMAIL || "").trim().toLowerCase();
+const ALLOWED_PROVIDER = String(process.env.ALLOWED_PROVIDER || "google").trim().toLowerCase();
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();

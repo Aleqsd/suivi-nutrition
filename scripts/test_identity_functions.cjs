@@ -1,5 +1,9 @@
 const assert = require("node:assert/strict");
 
+const allowedEmail = String(process.env.ALLOWED_EMAIL || process.env.AUTHORIZED_EMAIL || "authorized@example.com").trim().toLowerCase();
+
+process.env.ALLOWED_EMAIL = allowedEmail;
+
 const validate = require("../netlify/functions/identity-validate.js").handler;
 const signup = require("../netlify/functions/identity-signup.js").handler;
 const login = require("../netlify/functions/identity-login.js").handler;
@@ -23,7 +27,7 @@ function parseJsonBody(response) {
 
 async function main() {
   const allowedUser = {
-    email: "aleqsd@gmail.com",
+    email: allowedEmail,
     app_metadata: {
       provider: "google",
       roles: [],
@@ -31,7 +35,7 @@ async function main() {
   };
 
   const disallowedProviderUser = {
-    email: "aleqsd@gmail.com",
+    email: allowedEmail,
     app_metadata: {
       provider: "email",
       roles: [],
