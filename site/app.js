@@ -423,15 +423,24 @@ function renderNutritionBalance(data) {
       </article>
     `;
   } else {
-    const legend = scope.categoryShares.map((entry) => `
+    const formatGrams = (value) => {
+      const number = parseNumeric(value);
+      if (number === null) return "";
+      if (number === 0) return "";
+      return `${Math.round(number)} g`;
+    };
+    const legend = scope.categoryShares.map((entry) => {
+      const grams = formatGrams(entry.grams);
+      const details = grams ? ` • ${escapeHtml(grams)}` : "";
+      return `
       <li class="nutrition-legend-item">
         <span class="nutrition-legend-main">
           <span class="nutrition-legend-swatch" style="background:${foodCategoryColor(entry.key)};"></span>
           <span class="nutrition-legend-label">${escapeHtml(entry.icon || "🍽️")} ${escapeHtml(entry.label || entry.key)}</span>
         </span>
-        <span class="nutrition-legend-values">${escapeHtml(String(entry.sharePct))}% • ${escapeHtml(String(Math.round(entry.kcal)))} kcal</span>
+        <span class="nutrition-legend-values">${escapeHtml(String(entry.sharePct))}% • ${escapeHtml(String(Math.round(entry.kcal)))} kcal${details}</span>
       </li>
-    `).join("");
+    `;}).join("");
 
     target.innerHTML = `
       <article class="nutrition-balance-card">

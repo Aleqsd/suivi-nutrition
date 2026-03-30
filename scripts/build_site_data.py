@@ -989,6 +989,7 @@ def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = 
                         "label": bucket["label"],
                         "icon": bucket["icon"],
                         "kcal": bucket["kcal"],
+                        "grams": bucket["grams"],
                         "sharePct": bucket["sharePct"],
                     }
                 )
