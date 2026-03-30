@@ -226,11 +226,11 @@
     - category: "protein"
       weight: 20
   icon: "🍣"
-  default_unit: "piece"
+  default_unit: "pièce"
   default_portion:
     quantity: 1
-    unit: "piece"
-    portion_text: "1 piece"
+    unit: "pièce"
+    portion_text: "1 pièce"
 
 - key: "maki_tuna_raw"
   label: "Maki thon cru"
@@ -243,11 +243,11 @@
     - category: "fat"
       weight: 20
   icon: "🍣"
-  default_unit: "piece"
+  default_unit: "pièce"
   default_portion:
     quantity: 1
-    unit: "piece"
-    portion_text: "1 piece"
+    unit: "pièce"
+    portion_text: "1 pièce"
 
 - key: "maki_avocado_cream_cheese"
   label: "Maki avocat cream cheese"
@@ -260,11 +260,11 @@
     - category: "protein"
       weight: 15
   icon: "🍣"
-  default_unit: "piece"
+  default_unit: "pièce"
   default_portion:
     quantity: 1
-    unit: "piece"
-    portion_text: "1 piece"
+    unit: "pièce"
+    portion_text: "1 pièce"
 
 - key: "apple_compote"
   label: "Compote"

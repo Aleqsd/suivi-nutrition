@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from _common import ROOT, iter_journal_files, load_yaml, read_csv
 
@@ -724,6 +725,30 @@ def normalize_food_category_labels(food_reference: dict[str, dict], food_key: st
     return category_keys, category_labels
 
 
+def build_food_category_allocations(
+    food_reference: dict[str, dict],
+    food_key: str,
+    label: str,
+) -> list[dict[str, float | str]]:
+    allocations: dict[str, float] = {}
+    for key, share in resolve_food_category_allocations(food_reference, food_key, label):
+        if not key:
+            continue
+        allocations[key] = allocations.get(key, 0.0) + share
+
+    result: list[dict[str, float | str]] = []
+    for key, share in allocations.items():
+        rounded_share = round(share * 100, 1)
+        result.append(
+            {
+                "key": key,
+                "label": translate_food_category(key),
+                "sharePercent": rounded_share,
+            }
+        )
+    return result
+
+
 
 def translate_food_category(category: str) -> str:
     return FOOD_CATEGORY_LABELS.get(category, normalize_display_text(category.replace("_", " ")))
@@ -745,6 +770,7 @@ def build_who_comparison(scope: dict) -> list[dict]:
     totals = scope["categoryTotals"]
     total_kcal = scope["totalKcal"]
     days_covered = scope["daysCovered"]
+    meals_covered = scope["mealsCount"]
 
     produce_grams = totals["vegetable"]["grams"] + totals["fruit"]["grams"]
     produce_avg = produce_grams / days_covered if days_covered else 0.0
@@ -790,6 +816,12 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "unit": "g/j",
             "progressPct": round(produce_progress, 1),
             "delta": round(produce_gap, 1),
+            "calculationDetails": (
+                f"Fenêtre: {days_covered} jours couverts, {meals_covered} repas. "
+                f"Total fruits et légumes: {round(produce_grams, 1)} g. "
+                f"Moyenne: {round(produce_avg, 1)} g/j (objectif OMS: {produce_target} g/j). "
+                f"Ecart: {round(produce_gap, 1)} g/j."
+            ),
         }
     )
 
@@ -817,6 +849,11 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "unit": "% kcal",
             "progressPct": round(fat_progress, 1),
             "delta": round(fat_gap, 1),
+            "calculationDetails": (
+                f"Fenêtre: {days_covered} jours couverts, {meals_covered} repas. "
+                f"Kcal matières grasses: {totals['fat']['kcal']} kcal, total fenêtre: {round(total_kcal, 1)} kcal. "
+                f"Part: {round(fat_share, 1)} % kcal (objectif: {fat_target} % kcal)."
+            ),
         }
     )
 
@@ -844,6 +881,11 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "unit": "% kcal",
             "progressPct": round(starch_progress, 1),
             "delta": round(starch_gap, 1),
+            "calculationDetails": (
+                f"Fenêtre: {days_covered} jours couverts, {meals_covered} repas. "
+                f"Kcal féculents: {totals['starch']['kcal']} kcal, total fenêtre: {round(total_kcal, 1)} kcal. "
+                f"Part: {round(starch_share, 1)} % kcal (objectif: {starch_target} % kcal)."
+            ),
         }
     )
 
@@ -871,6 +913,11 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "unit": "catégories",
             "progressPct": round(diversity_progress, 1),
             "delta": round(diversity_gap, 1),
+            "calculationDetails": (
+                f"Fenêtre: {days_covered} jours couverts, {meals_covered} repas. "
+                f"Catégories réellement présentes (>=10 %): {meaningful_categories}. "
+                f"Objectif: {diversity_target} catégories."
+            ),
         }
     )
 
@@ -974,6 +1021,13 @@ def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = 
     }
 
 
+def format_unit_label(unit: str, quantity: float | None = None) -> str:
+    normalized = str(unit).strip().lower()
+    if normalized in {"piece", "pieces", "pièce", "pièces"}:
+        return "pièce" if quantity is not None and abs(float(quantity)) == 1 else "pièces"
+    return str(unit).strip()
+
+
 def format_quantity(value: str | int | float | None, unit: str) -> str:
     numeric = parse_numeric(value)
     if numeric is None or not unit:
@@ -982,7 +1036,31 @@ def format_quantity(value: str | int | float | None, unit: str) -> str:
         rendered = str(int(numeric))
     else:
         rendered = f"{numeric:.1f}".rstrip("0").rstrip(".")
-    return f"{rendered} {unit}"
+    return f"{rendered} {format_unit_label(unit, numeric)}"
+
+
+def normalize_food_reference_unit_text(text: str) -> str:
+    if not text:
+        return ""
+
+    def fix_piece_match(match: re.Match[str]) -> str:
+        amount = parse_numeric(match.group(1))
+        unit = match.group(2)
+        return f"{match.group(1)} {format_unit_label(unit, amount)}"
+
+    normalized = re.sub(
+        r"\b([0-9]+(?:[.,][0-9]+)?)\s*(piece|pieces|pièce|pièces)\b",
+        fix_piece_match,
+        text,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\b(piece|pieces|pièce|pièces)\b",
+        lambda match: format_unit_label(match.group(1), 2),
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    return normalized
 
 
 def meal_item_sort_key(row: dict) -> tuple[float, int]:
@@ -1146,6 +1224,11 @@ def build_recent_meals(food_reference: dict[str, dict]) -> list[dict]:
         for item in sorted(items_by_meal.get(meal.get("meal_id", ""), []), key=meal_item_sort_key):
             reference = food_reference.get(item.get("food_key", ""), {})
             icon = resolve_food_icon(food_reference, item.get("food_key", ""), item.get("label", ""))
+            category_allocations = build_food_category_allocations(
+                food_reference,
+                item.get("food_key", ""),
+                item.get("label", ""),
+            )
             category_keys, category_labels = normalize_food_category_labels(
                 food_reference,
                 item.get("food_key", ""),
@@ -1161,10 +1244,11 @@ def build_recent_meals(food_reference: dict[str, dict]) -> list[dict]:
                     "categoryKey": category,
                     "categoryKeys": category_keys,
                     "categoryLabels": category_labels,
+                    "categoryAllocations": category_allocations,
                     "categoryLabel": category_labels[0] if category_labels else translate_food_category(category),
                     "label": normalize_display_text(item.get("label") or reference.get("label") or item.get("food_key") or "Aliment inconnu"),
                     "quantityText": quantity_text,
-                    "portionText": normalize_display_text(item.get("portion_text", "")),
+                    "portionText": normalize_food_reference_unit_text(normalize_display_text(item.get("portion_text", ""))),
                     "quantitySource": item.get("quantity_source", ""),
                     "notes": normalize_display_text(item.get("item_notes", "")),
                 }
@@ -1250,12 +1334,21 @@ def build_dashboard_site_data() -> dict:
         row["category_labels"] = category_labels
         row["categoryKeys"] = category_keys
         row["categoryLabels"] = category_labels
+        row["categoryAllocations"] = build_food_category_allocations(
+            food_reference,
+            food_key,
+            row.get("label", ""),
+        )
         row["label"] = normalize_display_text(row.get("label", ""))
-        row["portion_text_examples"] = normalize_display_text(row.get("portion_text_examples", ""))
+        row["portion_text_examples"] = normalize_food_reference_unit_text(normalize_display_text(row.get("portion_text_examples", "")))
+        row["unit"] = format_unit_label(
+            str(row.get("unit", "")),
+            parse_numeric(row.get("total_quantity")),
+        )
         row["total_energy_kcal"] = str(round(total_energy_kcal, 1))
 
     dashboard = {
-        "generatedAt": datetime.now().isoformat(timespec="seconds"),
+        "generatedAt": datetime.now(ZoneInfo("Europe/Paris")).isoformat(timespec="seconds"),
         "profileSummary": build_profile_summary(profile),
         "profile": normalize_display_value(profile),
         "referenceSections": reference_sections,

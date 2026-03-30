@@ -206,18 +206,51 @@ function foodCategoryFromKey(categoryKey) {
   return text.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function foodCategoryChips(categoryKeys, categoryLabels, maxVisible = 3) {
+function foodCategoryChips(categoryKeys, categoryLabels, maxVisible = 3, categoryAllocations = []) {
   const keys = Array.isArray(categoryKeys) ? categoryKeys.filter(Boolean) : [];
   const labels = Array.isArray(categoryLabels) ? categoryLabels : [];
-  if (!keys.length) return "";
-  const visibleKeys = keys.slice(0, maxVisible);
-  const hiddenCount = Math.max(keys.length - visibleKeys.length, 0);
-  const visible = visibleKeys.map((key, index) => {
-    const tone = foodCategoryTone(key);
+  const allocations = Array.isArray(categoryAllocations) ? categoryAllocations : [];
+
+  const allocationByKey = new Map();
+  if (Array.isArray(allocations)) {
+    allocations.forEach((allocation) => {
+      if (!allocation || !allocation.key) return;
+      allocationByKey.set(allocation.key, allocation);
+    });
+  }
+  const allocationByLabel = new Map();
+  if (Array.isArray(allocations)) {
+    allocations.forEach((allocation) => {
+      if (!allocation || !allocation.label) return;
+      allocationByLabel.set(allocation.label, allocation);
+    });
+  }
+  const entries = keys.map((key, index) => {
     const label = labels[index] || foodCategoryFromKey(key);
-    return `<span class="food-category-chip" data-tone="${escapeHtml(tone)}">${escapeHtml(label)}</span>`;
+    const allocation = allocationByKey.get(key) || allocationByLabel.get(label) || {};
+    return {
+      key,
+      label,
+      percent: Number(allocation.sharePercent),
+    };
+  });
+  if (!entries.length) return "";
+
+  const formatPercent = (value) => Number.isFinite(value) ? `${Number.isInteger(value) ? value : Number(value).toFixed(1)} %` : "";
+  const visibleEntries = entries.slice(0, maxVisible);
+  const hiddenEntries = entries.slice(maxVisible);
+  if (!keys.length) return "";
+  const visible = visibleEntries.map((entry) => {
+    const tone = foodCategoryTone(entry.key);
+    const percent = formatPercent(entry.percent);
+    const title = percent ? `${entry.label} · ${percent}` : entry.label;
+    return `<span class="food-category-chip" data-tone="${escapeHtml(tone)}" title="${escapeHtml(title)}">${escapeHtml(entry.label)}</span>`;
   }).join("");
-  const summary = hiddenCount ? `<span class="food-category-chip chip-more">+${hiddenCount}</span>` : "";
+  const summary = hiddenEntries.length
+    ? `<span class="food-category-chip chip-more" title="${escapeHtml(
+      `+${hiddenEntries.length}: ` + hiddenEntries.map((entry) => `${entry.label}${formatPercent(entry.percent) ? ` · ${formatPercent(entry.percent)}` : ""}`).join(", ")
+    )}">${escapeHtml(`+${hiddenEntries.length}`)}</span>`
+    : "";
   return `${visible}${summary}`;
 }
 
@@ -233,8 +266,14 @@ function renderFreshness(data) {
   const formatted = Number.isNaN(parsed.valueOf())
     ? generatedAt
     : parsed.toLocaleString("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "medium",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: "Europe/Paris",
+      hour12: false,
     });
   target.textContent = `Dernière mise à jour: ${formatted}`;
 }
@@ -352,7 +391,7 @@ function renderNutritionBalance(data) {
     const deltaLabel = delta === null ? "" : `(${delta >= 0 ? "+" : ""}${delta}${unit ? ` ${unit}` : ""} vs cible)`;
 
     return `
-      <article class="nutrition-compare-card" data-status="${escapeHtml(item.status || "watch")}">
+      <article class="nutrition-compare-card" data-status="${escapeHtml(item.status || "watch")}" title="${escapeHtml(item.calculationDetails || item.calculationReport || "")}">
         <div class="nutrition-compare-top">
           <strong>${escapeHtml(item.label || "Repère")}</strong>
           <span class="nutrition-compare-status">${escapeHtml(nutritionStatusLabel(item.status))}</span>
@@ -537,6 +576,7 @@ function buildMealCardsForDateGroup(meals, data) {
                   item.categoryKeys || (item.categoryKey ? [item.categoryKey] : []),
                   item.categoryLabels || (item.categoryLabel ? [item.categoryLabel] : []),
                   2,
+                  item.categoryAllocations || [],
                 ) : ""}
               </div>
             </div>
@@ -1030,11 +1070,12 @@ function renderFoodTable(data) {
   visibleFoods.forEach((row) => {
     const categoryKeys = row.categoryKeys || row.category_keys || (row.category_key ? [row.category_key] : []);
     const categoryLabels = row.categoryLabels || row.category_labels || (row.category_label ? [row.category_label] : []);
+    const categoryAllocations = row.categoryAllocations || [];
     const icon = row.icon || "🍽️";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><span class="food-name-cell"><span class="food-name-icon">${escapeHtml(icon)}</span><span>${escapeHtml(row.label || row.food_key || "Inconnu")}</span></span></td>
-      <td>${categoryKeys.length ? foodCategoryChips(categoryKeys, categoryLabels) : "—"}</td>
+      <td>${categoryKeys.length ? foodCategoryChips(categoryKeys, categoryLabels, 3, categoryAllocations) : "—"}</td>
       <td>${escapeHtml(String(row.occurrence_count || ""))}</td>
       <td>${escapeHtml(String(row.distinct_days || ""))}</td>
       <td>${escapeHtml(row.total_quantity ? `${row.total_quantity} ${row.unit || ""}` : "—")}</td>
