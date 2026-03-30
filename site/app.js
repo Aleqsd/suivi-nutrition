@@ -110,6 +110,22 @@ function foodCategoryColor(categoryKey) {
   return colors[categoryKey] || "var(--category-neutral)";
 }
 
+function foodCategoryFromKey(categoryKey) {
+  const text = String(categoryKey || "");
+  return text.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function foodCategoryChips(categoryKeys, categoryLabels) {
+  const keys = Array.isArray(categoryKeys) ? categoryKeys.filter(Boolean) : [];
+  const labels = Array.isArray(categoryLabels) ? categoryLabels : [];
+  if (!keys.length) return "";
+  return keys.map((key, index) => {
+    const tone = foodCategoryTone(key);
+    const label = labels[index] || foodCategoryFromKey(key);
+    return `<span class="food-category-chip" data-tone="${escapeHtml(tone)}">${escapeHtml(label)}</span>`;
+  }).join("");
+}
+
 function renderFreshness(data) {
   const target = document.getElementById("dashboard-freshness");
   if (!target) return;
@@ -388,7 +404,10 @@ function renderRecentMeals(data) {
               </div>
               <div class="food-meta">
                 ${item.portionText && item.quantityText ? `<span>${escapeHtml(item.portionText)}</span>` : ""}
-                ${item.categoryLabel ? `<span class="food-category-chip" data-tone="${escapeHtml(foodCategoryTone(item.categoryKey))}">${escapeHtml(item.categoryLabel)}</span>` : ""}
+                ${(item.categoryKeys || item.categoryKey) ? foodCategoryChips(
+                  item.categoryKeys || (item.categoryKey ? [item.categoryKey] : []),
+                  item.categoryLabels || (item.categoryLabel ? [item.categoryLabel] : []),
+                ) : ""}
               </div>
             </div>
           </div>
@@ -782,11 +801,13 @@ function renderFoodTable(data) {
   const visibleFoods = foods.slice(startIndex, startIndex + FOODS_PER_PAGE);
 
   visibleFoods.forEach((row) => {
+    const categoryKeys = row.categoryKeys || row.category_keys || (row.category_key ? [row.category_key] : []);
+    const categoryLabels = row.categoryLabels || row.category_labels || (row.category_label ? [row.category_label] : []);
     const icon = row.icon || "🍽️";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><span class="food-name-cell"><span class="food-name-icon">${escapeHtml(icon)}</span><span>${escapeHtml(row.label || row.food_key || "Inconnu")}</span></span></td>
-      <td>${row.category_label ? `<span class="food-category-chip" data-tone="${escapeHtml(foodCategoryTone(row.category_key))}">${escapeHtml(row.category_label)}</span>` : "—"}</td>
+      <td>${categoryKeys.length ? foodCategoryChips(categoryKeys, categoryLabels) : "—"}</td>
       <td>${escapeHtml(String(row.occurrence_count || ""))}</td>
       <td>${escapeHtml(String(row.distinct_days || ""))}</td>
       <td>${escapeHtml(row.total_quantity ? `${row.total_quantity} ${row.unit || ""}` : "—")}</td>

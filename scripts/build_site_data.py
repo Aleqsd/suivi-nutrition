@@ -648,8 +648,81 @@ def resolve_food_icon(food_reference: dict[str, dict], food_key: str, label: str
 
 
 def resolve_food_category(food_reference: dict[str, dict], food_key: str, label: str) -> str:
+    resolved_categories = resolve_food_category_allocations(food_reference, food_key, label)
+    if not resolved_categories:
+        return fallback_food_category(food_key, label)
+    return resolved_categories[0][0]
+
+
+def resolve_food_category_allocations(food_reference: dict[str, dict], food_key: str, label: str) -> list[tuple[str, float]]:
     reference = food_reference.get(food_key, {})
-    return reference.get("category") or fallback_food_category(food_key, label)
+    raw_categories = reference.get("categories")
+    category_weights: list[tuple[str, float | None]] = []
+
+    def push_category(category: str, weight: float | None) -> None:
+        normalized = str(category).strip().lower().replace(" ", "_")
+        if normalized:
+            category_weights.append((normalized, weight))
+
+    if isinstance(raw_categories, list):
+        for entry in raw_categories:
+            if isinstance(entry, str):
+                push_category(entry, None)
+            elif isinstance(entry, dict):
+                if "category" in entry and "weight" in entry:
+                    push_category(str(entry.get("category", "")), parse_numeric(entry.get("weight")))
+                else:
+                    for key, value in entry.items():
+                        if isinstance(key, str) and value is not None:
+                            push_category(key, parse_numeric(value))
+                            break
+    elif isinstance(raw_categories, dict):
+        for key, value in raw_categories.items():
+            push_category(key, parse_numeric(value))
+
+    if not category_weights:
+        legacy_category = reference.get("category")
+        if isinstance(legacy_category, str) and legacy_category.strip():
+            category_weights = [(legacy_category.strip().lower().replace(" ", "_"), 1.0)]
+        else:
+            category_weights = [(fallback_food_category(food_key, label), 1.0)]
+
+    total_weight = 0.0
+    for _, weight in category_weights:
+        if weight is not None and weight > 0:
+            total_weight += weight
+
+    if total_weight <= 0:
+        count = len(category_weights)
+        if not count:
+            return [(fallback_food_category(food_key, label), 1.0)]
+        return [(category, 1.0 / count) for category, _ in category_weights]
+
+    # Normalize weights; if some categories miss weight, treat them as 1
+    normalized: list[tuple[str, float]] = []
+    for category, weight in category_weights:
+        normalized_weight = weight if weight is not None and weight > 0 else 1.0
+        normalized_weight = normalized_weight / total_weight
+        if normalized_weight > 0:
+            normalized.append((category, normalized_weight))
+    return normalized or [(fallback_food_category(food_key, label), 1.0)]
+
+
+def normalize_food_category_labels(food_reference: dict[str, dict], food_key: str, label: str) -> tuple[list[str], list[str]]:
+    allocations = resolve_food_category_allocations(food_reference, food_key, label)
+    category_keys: list[str] = []
+    category_labels: list[str] = []
+    seen: set[str] = set()
+
+    for category, _ in allocations:
+        if category in seen:
+            continue
+        seen.add(category)
+        category_keys.append(category)
+        category_labels.append(translate_food_category(category))
+
+    return category_keys, category_labels
+
 
 
 def translate_food_category(category: str) -> str:
@@ -782,13 +855,13 @@ def build_nutrition_balance(food_reference: dict[str, dict]) -> dict:
         if row_date is None or row_date < start_date or row_date > end_date:
             continue
         label = row.get("label", "")
-        category = resolve_food_category(food_reference, row.get("food_key", ""), label)
+        category_allocations = resolve_food_category_allocations(food_reference, row.get("food_key", ""), label)
         filtered_rows.append(
             {
                 "date": row_date,
                 "meal_id": row.get("meal_id", ""),
                 "meal_type": row.get("meal_type", ""),
-                "category": category,
+                "category_allocations": category_allocations,
                 "energy_kcal": parse_numeric(row.get("energy_kcal")) or 0.0,
                 "quantity": parse_numeric(row.get("quantity")) or 0.0,
                 "unit": row.get("unit", ""),
@@ -808,10 +881,18 @@ def build_nutrition_balance(food_reference: dict[str, dict]) -> dict:
         category_totals = {category: category_balance_template(category) for category in FOOD_CATEGORY_ORDER}
 
         for row in scope_rows:
-            bucket = category_totals[row["category"]]
-            bucket["kcal"] += row["energy_kcal"]
+            energy_kcal = row["energy_kcal"]
+            for category, weight in row["category_allocations"]:
+                if category not in category_totals:
+                    continue
+                bucket = category_totals[category]
+                bucket["kcal"] += energy_kcal * weight
             if row["unit"] == "g" and row["quantity_source"] != "unknown":
-                bucket["grams"] += row["quantity"]
+                for category, weight in row["category_allocations"]:
+                    if category not in category_totals:
+                        continue
+                    bucket = category_totals[category]
+                    bucket["grams"] += row["quantity"] * weight
 
         category_shares: list[dict] = []
         days_covered = len(covered_days)
@@ -1032,7 +1113,12 @@ def build_recent_meals(food_reference: dict[str, dict]) -> list[dict]:
         for item in sorted(items_by_meal.get(meal.get("meal_id", ""), []), key=meal_item_sort_key):
             reference = food_reference.get(item.get("food_key", ""), {})
             icon = resolve_food_icon(food_reference, item.get("food_key", ""), item.get("label", ""))
-            category = resolve_food_category(food_reference, item.get("food_key", ""), item.get("label", ""))
+            category_keys, category_labels = normalize_food_category_labels(
+                food_reference,
+                item.get("food_key", ""),
+                item.get("label", ""),
+            )
+            category = category_keys[0] if category_keys else "mixed_dish"
             quantity_text = format_quantity(item.get("quantity"), item.get("unit", ""))
             if quantity_text and item.get("quantity_source") == "estimated":
                 quantity_text = f"~{quantity_text}"
@@ -1040,7 +1126,9 @@ def build_recent_meals(food_reference: dict[str, dict]) -> list[dict]:
                 {
                     "icon": icon,
                     "categoryKey": category,
-                    "categoryLabel": translate_food_category(category),
+                    "categoryKeys": category_keys,
+                    "categoryLabels": category_labels,
+                    "categoryLabel": category_labels[0] if category_labels else translate_food_category(category),
                     "label": normalize_display_text(item.get("label") or reference.get("label") or item.get("food_key") or "Aliment inconnu"),
                     "quantityText": quantity_text,
                     "portionText": normalize_display_text(item.get("portion_text", "")),
@@ -1099,6 +1187,11 @@ def build_dashboard_site_data() -> dict:
             row.get("food_key", ""),
             row.get("label", ""),
         )
+        category_keys, category_labels = normalize_food_category_labels(
+            food_reference,
+            row.get("food_key", ""),
+            row.get("label", ""),
+        )
         row["icon"] = resolve_food_icon(
             food_reference,
             row.get("food_key", ""),
@@ -1106,6 +1199,10 @@ def build_dashboard_site_data() -> dict:
         )
         row["category_key"] = category
         row["category_label"] = translate_food_category(category)
+        row["category_keys"] = category_keys
+        row["category_labels"] = category_labels
+        row["categoryKeys"] = category_keys
+        row["categoryLabels"] = category_labels
         row["label"] = normalize_display_text(row.get("label", ""))
         row["portion_text_examples"] = normalize_display_text(row.get("portion_text_examples", ""))
 

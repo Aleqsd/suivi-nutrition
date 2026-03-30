@@ -141,6 +141,13 @@
 - key: "burger"
   label: "Burger"
   category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 40
+    - category: "fat"
+      weight: 35
+    - category: "protein"
+      weight: 25
   icon: "🍔"
   default_unit: "g"
   default_portion:
@@ -211,6 +218,13 @@
 - key: "california_salmon_avocado"
   label: "California saumon avocat"
   category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 50
+    - category: "fat"
+      weight: 30
+    - category: "protein"
+      weight: 20
   icon: "🍣"
   default_unit: "piece"
   default_portion:
@@ -221,6 +235,13 @@
 - key: "maki_tuna_raw"
   label: "Maki thon cru"
   category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 50
+    - category: "protein"
+      weight: 30
+    - category: "fat"
+      weight: 20
   icon: "🍣"
   default_unit: "piece"
   default_portion:
@@ -231,6 +252,13 @@
 - key: "maki_avocado_cream_cheese"
   label: "Maki avocat cream cheese"
   category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 45
+    - category: "fat"
+      weight: 40
+    - category: "protein"
+      weight: 15
   icon: "🍣"
   default_unit: "piece"
   default_portion:
