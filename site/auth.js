@@ -4,6 +4,8 @@ const loginButton = document.getElementById("auth-login");
 const logoutButton = document.getElementById("auth-logout");
 const REQUIRED_ROLE = "health";
 const PROTECTED_DATA_PATH = "/app/data/dashboard.json";
+const authReadyState = createDeferred();
+window.__atlasAuthReady = authReadyState.promise;
 
 const AUTH_STATUS_MESSAGES = {
   unauthorized: "Le compte connecté n'a pas le rôle health. Reconnecte-toi avec l'adresse Google invitée.",
@@ -11,6 +13,31 @@ const AUTH_STATUS_MESSAGES = {
   identity_unavailable: "La brique de connexion Netlify Identity n'a pas pu être chargée.",
   session_pending: "La session est créée, mais l'accès protégé n'est pas encore prêt. Réessaie dans quelques secondes.",
 };
+
+function createDeferred() {
+  let settled = false;
+  let resolvePromise = () => {};
+  const promise = new Promise((resolve) => {
+    resolvePromise = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+  });
+  return {
+    promise,
+    resolve: resolvePromise,
+  };
+}
+
+function resolveAuthReady(result) {
+  authReadyState.resolve(result);
+}
+
+function setAppAuthState(state) {
+  if (page !== "app") return;
+  document.body.dataset.authState = state;
+}
 
 function getUserRoles(user) {
   return Array.isArray(user?.app_metadata?.roles) ? user.app_metadata.roles : [];
@@ -33,10 +60,12 @@ function setButtonBusy(isBusy) {
 }
 
 function redirectToApp() {
+  resolveAuthReady({ authorized: true, user: getIdentityUser() });
   window.location.replace("/app/");
 }
 
 function redirectToLogin(reason = "") {
+  resolveAuthReady({ authorized: false, reason });
   const url = new URL("/", window.location.origin);
   if (reason) url.searchParams.set("auth", reason);
   window.location.replace(url.toString());
@@ -83,10 +112,35 @@ async function probeProtectedDataAccess() {
   };
 }
 
+async function waitForProtectedAppAccess(user) {
+  const retryDelays = [0, 250, 750, 1500, 2500];
+  for (const delayMs of retryDelays) {
+    if (delayMs) await wait(delayMs);
+
+    try {
+      await refreshIdentityJwt(user, delayMs === 0);
+      const probe = await probeProtectedDataAccess();
+      if (probe.authorized) {
+        return true;
+      }
+    } catch (error) {
+      console.warn("Protected app probe failed.", error);
+    }
+  }
+  return false;
+}
+
 async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
   if (page !== "login") {
-    redirectToApp();
-    return true;
+    setAppAuthState("pending");
+    const accessReady = await waitForProtectedAppAccess(user);
+    if (accessReady) {
+      setAppAuthState("ready");
+      resolveAuthReady({ authorized: true, user });
+      return true;
+    }
+    redirectToLogin("session_pending");
+    return false;
   }
 
   setButtonBusy(true);
@@ -97,25 +151,40 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
     "info",
   );
 
-  const retryDelays = [0, 250, 750, 1500, 2500];
-  for (const delayMs of retryDelays) {
-    if (delayMs) await wait(delayMs);
-
-    try {
-      await refreshIdentityJwt(user, delayMs === 0);
-      const probe = await probeProtectedDataAccess();
-      if (probe.authorized) {
-        redirectToApp();
-        return true;
-      }
-    } catch (error) {
-      console.warn("Protected app probe failed.", error);
-    }
+  const accessReady = await waitForProtectedAppAccess(user);
+  if (accessReady) {
+    redirectToApp();
+    return true;
   }
 
   setButtonBusy(false);
   setStatus(AUTH_STATUS_MESSAGES.session_pending, "error");
   return false;
+}
+
+async function bootstrapAppAccess(user) {
+  setAppAuthState("pending");
+
+  if (!user) {
+    redirectToLogin();
+    return false;
+  }
+
+  if (!userHasRequiredRole(user)) {
+    await handleUnauthorizedUser();
+    redirectToLogin("unauthorized");
+    return false;
+  }
+
+  const accessReady = await waitForProtectedAppAccess(user);
+  if (!accessReady) {
+    redirectToLogin("session_pending");
+    return false;
+  }
+
+  setAppAuthState("ready");
+  resolveAuthReady({ authorized: true, user });
+  return true;
 }
 
 function openGoogleLoginDirect() {
@@ -160,6 +229,7 @@ async function handleUnauthorizedUser() {
 
 function initIdentity() {
   showAuthStateFromUrl();
+  if (page === "app") setAppAuthState("pending");
 
   if (!window.netlifyIdentity) {
     setStatus(AUTH_STATUS_MESSAGES.identity_unavailable, "error");
@@ -184,14 +254,8 @@ function initIdentity() {
       return;
     }
 
-    if (page === "app" && !user) {
-      redirectToLogin("expired");
-      return;
-    }
-
-    if (page === "app" && !userHasRequiredRole(user)) {
-      await handleUnauthorizedUser();
-      redirectToLogin("unauthorized");
+    if (page === "app") {
+      await bootstrapAppAccess(user);
       return;
     }
 
@@ -215,6 +279,10 @@ function initIdentity() {
   window.netlifyIdentity.on("error", (error) => {
     setButtonBusy(false);
     setStatus(error?.message || "Connexion impossible.", "error");
+    if (page === "app") {
+      console.error("Identity bootstrap failed.", error);
+      redirectToLogin("identity_unavailable");
+    }
   });
 
   window.netlifyIdentity.init();

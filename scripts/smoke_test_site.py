@@ -73,6 +73,14 @@ def assert_redirects_to_root(url: str, *, context: str) -> None:
         raise AssertionError(f"Expected redirect to `/` for {context}, got {location!r}")
 
 
+def assert_html_ok(url: str, *, context: str) -> tuple[dict[str, str], str]:
+    status, _, headers, body = open_response(url)
+    if status != 200:
+        raise AssertionError(f"Expected HTTP 200 for {context}, got HTTP {status}")
+    assert_header_contains(headers, "content-type", "text/html", context=context)
+    return headers, body
+
+
 def run_public(base_url: str) -> None:
     root_url = base_url.rstrip("/") + "/"
     _, _, root_headers, html = open_response(root_url)
@@ -88,8 +96,11 @@ def run_public(base_url: str) -> None:
     for asset in asset_matches:
         fetch_text(urljoin(root_url, asset))
 
-    assert_redirects_to_root(urljoin(root_url, "app/"), context="anonymous /app/")
-    assert_redirects_to_root(urljoin(root_url, "app/index.html"), context="anonymous /app/index.html")
+    _, app_html = assert_html_ok(urljoin(root_url, "app/"), context="anonymous /app/ shell")
+    assert_contains(app_html, "Ouverture de la session", context="anonymous /app/ shell")
+    assert_contains(app_html, "app.js?v=", context="anonymous /app/ shell")
+    _, app_index_html = assert_html_ok(urljoin(root_url, "app/index.html"), context="anonymous /app/index.html shell")
+    assert_contains(app_index_html, "Ouverture de la session", context="anonymous /app/index.html shell")
     assert_redirects_to_root(urljoin(root_url, "app/data/dashboard.json"), context="anonymous dashboard JSON")
 
     identity_settings = fetch_json(urljoin(root_url, ".netlify/identity/settings"))

@@ -9,11 +9,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../styles.css?v=2026-03-29-12">
+    <link rel="stylesheet" href="../styles.css?v=2026-03-30-01">
     <script defer src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-    <script defer src="../auth.js?v=2026-03-29-10"></script>
+    <script defer src="../auth.js?v=2026-03-30-01"></script>
   </head>
-  <body data-page="app">
+  <body data-page="app" data-auth-state="pending">
+    <div class="app-boot" aria-live="polite">
+      <div class="app-boot-card">
+        <p class="eyebrow">Atlas</p>
+        <h1>Ouverture de la session</h1>
+        <p>Vérification de la session mémorisée et de l’accès protégé au dashboard…</p>
+      </div>
+    </div>
     <div class="page-shell">
       <header class="utility-bar reveal">
         <div class="utility-brand-block">
@@ -255,6 +262,6 @@
       </article>
     </template>
 
-    <script src="../app.js?v=2026-03-29-13" type="module"></script>
+    <script src="../app.js?v=2026-03-30-01" type="module"></script>
   </body>
 </html>

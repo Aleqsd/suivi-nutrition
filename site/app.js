@@ -24,6 +24,9 @@ class AuthRedirectError extends Error {
 }
 
 function redirectToLogin(reason = "expired") {
+  if (document.body.dataset.page === "app") {
+    document.body.dataset.authState = "pending";
+  }
   const url = new URL("/", window.location.origin);
   if (reason) url.searchParams.set("auth", reason);
   window.location.replace(url.toString());
@@ -57,6 +60,26 @@ async function loadDashboard() {
     throw new Error(`Unexpected dashboard content type: ${contentType || "unknown"}`);
   }
   return response.json();
+}
+
+async function waitForAuthBootstrap() {
+  const authReady = window.__atlasAuthReady;
+  if (!authReady || typeof authReady.then !== "function") return;
+  const result = await authReady;
+  if (result?.authorized === false) {
+    throw new AuthRedirectError(result.reason || "expired");
+  }
+}
+
+function markAppHydrated() {
+  if (document.body.dataset.page !== "app") return;
+  document.body.dataset.authState = "hydrated";
+  const bootNode = document.querySelector(".app-boot");
+  if (bootNode) {
+    window.setTimeout(() => {
+      bootNode.hidden = true;
+    }, 180);
+  }
 }
 
 function prettyActivity(value) {
@@ -1424,8 +1447,10 @@ function setupFreshnessChecks() {
 }
 
 async function boot() {
+  await waitForAuthBootstrap();
   state.dashboard = await loadDashboard();
   renderApp(state.dashboard);
+  markAppHydrated();
   setupSectionControls();
   setupReveal();
   setupLiveReload();

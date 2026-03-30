@@ -242,6 +242,68 @@ body::before {
   margin-bottom: 20px;
 }
 
+.app-boot {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 0 0 6px;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.app-boot[hidden] {
+  display: none;
+}
+
+.app-boot::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(35, 75, 68, 0.12), rgba(176, 203, 83, 0.85), rgba(35, 75, 68, 0.12));
+  background-size: 200% 100%;
+  animation: app-boot-progress 1.2s linear infinite;
+}
+
+.app-boot-card {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 760px);
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 244, 0.94);
+  box-shadow: 0 16px 24px rgba(35, 75, 68, 0.08);
+}
+
+.app-boot-card h1 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.app-boot-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+body[data-page="app"][data-auth-state="hydrated"] .app-boot {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@keyframes app-boot-progress {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .utility-brand-block {
   display: grid;
   gap: 6px;
