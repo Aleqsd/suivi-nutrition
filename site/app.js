@@ -74,12 +74,6 @@ async function waitForAuthBootstrap() {
 function markAppHydrated() {
   if (document.body.dataset.page !== "app") return;
   document.body.dataset.authState = "hydrated";
-  const bootNode = document.querySelector(".app-boot");
-  if (bootNode) {
-    window.setTimeout(() => {
-      bootNode.hidden = true;
-    }, 180);
-  }
 }
 
 function prettyActivity(value) {

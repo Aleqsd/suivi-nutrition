@@ -97,10 +97,10 @@ def run_public(base_url: str) -> None:
         fetch_text(urljoin(root_url, asset))
 
     _, app_html = assert_html_ok(urljoin(root_url, "app/"), context="anonymous /app/ shell")
-    assert_contains(app_html, "Ouverture de la session", context="anonymous /app/ shell")
+    assert_contains(app_html, "dashboard-freshness", context="anonymous /app/ shell")
     assert_contains(app_html, "app.js?v=", context="anonymous /app/ shell")
     _, app_index_html = assert_html_ok(urljoin(root_url, "app/index.html"), context="anonymous /app/index.html shell")
-    assert_contains(app_index_html, "Ouverture de la session", context="anonymous /app/index.html shell")
+    assert_contains(app_index_html, "dashboard-freshness", context="anonymous /app/index.html shell")
     assert_redirects_to_root(urljoin(root_url, "app/data/dashboard.json"), context="anonymous dashboard JSON")
 
     identity_settings = fetch_json(urljoin(root_url, ".netlify/identity/settings"))

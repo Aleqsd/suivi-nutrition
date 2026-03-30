@@ -14,20 +14,16 @@
     <script defer src="../auth.js?v=2026-03-30-01"></script>
   </head>
   <body data-page="app" data-auth-state="pending">
-    <div class="app-boot" aria-live="polite">
-      <div class="app-boot-card">
-        <p class="eyebrow">Atlas</p>
-        <h1>Ouverture de la session</h1>
-        <p>Vérification de la session mémorisée et de l’accès protégé au dashboard…</p>
-      </div>
-    </div>
     <div class="page-shell">
       <header class="utility-bar reveal">
         <div class="utility-brand-block">
-          <a class="utility-brand" href="/">Atlas</a>
+          <a class="utility-brand" href="/">
+            <span class="utility-brand-kicker">Tableau de bord santé</span>
+            <span class="utility-brand-name"><span class="utility-brand-icon" aria-hidden="true">🥑</span><span>Atlas</span></span>
+          </a>
           <span class="utility-meta" id="dashboard-freshness">Synchronisation…</span>
         </div>
-        <button class="utility-button" id="auth-logout" type="button">Se déconnecter</button>
+        <button class="utility-button utility-button-secondary" id="auth-logout" type="button">Se déconnecter</button>
       </header>
 
       <main>
