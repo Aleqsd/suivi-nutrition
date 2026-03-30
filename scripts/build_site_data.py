@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from _common import ROOT, iter_journal_files, load_yaml, read_csv
+from _common import ROOT, iter_day_log_files, load_yaml, read_csv
 
 
 PROFILE_PATH = ROOT / "data" / "profile" / "current.yaml"
@@ -505,7 +505,7 @@ def translate_document_category(value: str) -> str:
 
 def build_timeline() -> list[dict]:
     entries: list[dict] = []
-    for path in iter_journal_files():
+    for path in iter_day_log_files():
         document = load_yaml(path)
         if not isinstance(document, dict):
             continue

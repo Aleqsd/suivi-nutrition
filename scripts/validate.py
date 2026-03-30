@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import sys
 
-from _common import PROFILE_PATH, iter_journal_files, load_yaml, validate_day_log, validate_profile
+from _common import PROFILE_PATH, iter_day_log_files, load_yaml, validate_day_log, validate_profile
 
 
 def main() -> int:
-    files = iter_journal_files()
+    files = iter_day_log_files()
     if not files:
         print("No journal files found.")
         return 0
@@ -39,4 +39,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -11,12 +11,16 @@ __pycache__/
 Thumbs.db
 tmp/
 *.log
+.env.capture
+.env.capture.*
 site-preview*.png
 tmp-*.png
 
 # Sensitive health data stays local or on the VPS only.
 data/journal/**
 !data/journal/.gitkeep
+data/journal-imports/**
+!data/journal-imports/.gitkeep
 data/raw/**
 !data/raw/.gitkeep
 data/profile/current.yaml

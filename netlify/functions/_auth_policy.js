@@ -22,6 +22,10 @@ function getIdentity(user = {}) {
   };
 }
 
+function getContextUser(context = {}) {
+  return context?.clientContext?.user || {};
+}
+
 function isAllowedIdentity(user = {}) {
   const { email, provider } = getIdentity(user);
   return email === ALLOWED_EMAIL && provider === ALLOWED_PROVIDER;
@@ -65,6 +69,7 @@ module.exports = {
   ALLOWED_EMAIL,
   ALLOWED_PROVIDER,
   forbiddenResponse,
+  getContextUser,
   getIdentity,
   isAllowedIdentity,
   jsonResponse,

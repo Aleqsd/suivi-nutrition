@@ -725,6 +725,7 @@ function prettyLabel(value) {
     same_day_recall: "Rappel Même Jour",
     historical_recall: "Rappel Historique",
     import: "Import",
+    photo_share: "Photo Partagée",
     high: "Élevée",
     medium: "Moyenne",
     low: "Faible",

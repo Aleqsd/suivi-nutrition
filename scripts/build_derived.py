@@ -5,7 +5,7 @@ import json
 from collections import defaultdict
 from datetime import date
 
-from _common import ensure_parent, iter_journal_files, load_yaml, month_key, project_root, read_csv, write_csv
+from _common import ensure_parent, iter_day_log_files, load_yaml, month_key, project_root, read_csv, write_csv
 
 
 ROOT = project_root()
@@ -450,7 +450,7 @@ def main() -> int:
 
     day_context: dict[str, dict] = {}
     journal_documents: list[dict] = []
-    for path in iter_journal_files():
+    for path in iter_day_log_files():
         document = load_yaml(path)
         if not isinstance(document, dict):
             continue

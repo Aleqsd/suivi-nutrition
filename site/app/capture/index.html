@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Atlas</title>
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="theme-color" content="#234b44">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='52' y='54' text-anchor='middle' dominant-baseline='middle' font-size='82'%3E%F0%9F%A5%91%3C/text%3E%3C/svg%3E">
+    <link rel="manifest" href="../../manifest.webmanifest?v=2026-03-30-02">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../styles.css?v=2026-03-30-02">
+    <script defer src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+    <script defer src="../../auth.js?v=2026-03-30-02"></script>
+    <script defer src="../../pwa.js?v=2026-03-30-02"></script>
+  </head>
+  <body data-page="capture" data-auth-state="pending">
+    <div class="page-shell">
+      <header class="utility-bar reveal">
+        <div class="utility-brand-block">
+          <a class="utility-brand" href="/app/">
+            <span class="utility-brand-kicker">Capture repas</span>
+            <span class="utility-brand-name"><span class="utility-brand-icon" aria-hidden="true">📷</span><span>Atlas</span></span>
+          </a>
+          <span class="utility-meta" id="capture-status-chip">Prêt à recevoir une photo</span>
+        </div>
+        <div class="utility-actions">
+          <a class="utility-button utility-button-secondary" href="/app/">Retour au dashboard</a>
+          <button class="utility-button utility-button-secondary" id="auth-logout" type="button">Se déconnecter</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="capture-layout reveal">
+          <div class="section-head">
+            <p class="eyebrow">Photo</p>
+            <h1 class="capture-title">Ajouter un repas depuis une photo</h1>
+            <p>Partage une photo depuis Android vers Atlas ou choisis une image manuellement. L’analyse produit un brouillon structuré avant enregistrement si la confiance n’est pas suffisante.</p>
+          </div>
+
+          <div class="capture-grid">
+            <article class="capture-panel">
+              <div class="capture-dropzone">
+                <label class="capture-file-input" for="photo-input">
+                  <span class="capture-file-copy">Choisir ou reprendre une photo</span>
+                  <span class="capture-file-meta">JPEG, PNG, WebP, HEIC selon le navigateur</span>
+                </label>
+                <input id="photo-input" type="file" accept="image/*">
+              </div>
+              <p class="capture-inline-note" id="share-hint">Depuis Android, installe Atlas sur l’écran d’accueil pour le voir dans le menu Partager.</p>
+              <div class="capture-preview-shell">
+                <img id="photo-preview" class="capture-preview" alt="Aperçu du repas sélectionné" hidden>
+                <div id="photo-preview-empty" class="empty-state">Aucune photo sélectionnée pour le moment.</div>
+              </div>
+              <div class="capture-meta" id="photo-meta"></div>
+              <div class="capture-actions">
+                <button class="auth-button" id="analyze-photo" type="button">Analyser la photo</button>
+                <span id="capture-status" class="capture-status-text">En attente d’une image.</span>
+              </div>
+            </article>
+
+            <article class="capture-panel capture-review-panel">
+              <div class="panel-header">
+                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🧾</span><span>Brouillon structuré</span></h2>
+                <p id="review-summary">Après analyse, le brouillon du repas apparaît ici.</p>
+              </div>
+
+              <div id="analysis-result" class="capture-result empty-state">Aucune analyse en cours.</div>
+
+              <form id="review-form" class="capture-review-form" hidden>
+                <div class="capture-review-grid">
+                  <label class="capture-field">
+                    <span>Date</span>
+                    <input id="draft-date" name="date" type="date">
+                  </label>
+                  <label class="capture-field">
+                    <span>Heure</span>
+                    <input id="draft-time" name="time" type="time">
+                  </label>
+                  <label class="capture-field">
+                    <span>Type de repas</span>
+                    <select id="draft-meal-type" name="meal_type">
+                      <option value="breakfast">Petit déjeuner</option>
+                      <option value="lunch">Déjeuner</option>
+                      <option value="dinner">Dîner</option>
+                      <option value="snack">Collation</option>
+                    </select>
+                  </label>
+                  <label class="capture-field">
+                    <span>Confiance repas</span>
+                    <select id="draft-confidence" name="confidence">
+                      <option value="high">Élevée</option>
+                      <option value="medium">Moyenne</option>
+                      <option value="low">Faible</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label class="capture-field">
+                  <span>Description source</span>
+                  <textarea id="draft-source-text" name="source_text" rows="3"></textarea>
+                </label>
+
+                <div class="capture-assessment" id="draft-assessment"></div>
+
+                <div class="capture-items-head">
+                  <h3>Aliments retenus</h3>
+                  <button class="utility-button utility-button-secondary" id="add-item" type="button">Ajouter un aliment</button>
+                </div>
+                <div id="draft-items" class="capture-items"></div>
+
+                <div class="capture-actions">
+                  <button class="auth-button" id="commit-draft" type="submit">Enregistrer le repas</button>
+                  <span id="commit-status" class="capture-status-text">Le commit écrit dans les imports privés puis relance le rebuild.</span>
+                </div>
+              </form>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="capture-item-template">
+      <article class="capture-item-row">
+        <div class="capture-item-grid">
+          <label class="capture-field">
+            <span>Aliment</span>
+            <input data-field="label" type="text">
+          </label>
+          <label class="capture-field">
+            <span>Quantité</span>
+            <input data-field="quantity" type="number" step="0.1" min="0">
+          </label>
+          <label class="capture-field">
+            <span>Unité</span>
+            <select data-field="unit">
+              <option value="">Inconnue</option>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="ml">ml</option>
+              <option value="l">l</option>
+              <option value="unit">unit</option>
+              <option value="piece">pièce</option>
+              <option value="slice">tranche</option>
+              <option value="plate">assiette</option>
+              <option value="bowl">bol</option>
+              <option value="cup">tasse</option>
+              <option value="glass">verre</option>
+              <option value="pack">pack</option>
+              <option value="tbsp">c. soupe</option>
+              <option value="tsp">c. café</option>
+            </select>
+          </label>
+          <label class="capture-field">
+            <span>Portion texte</span>
+            <input data-field="portion_text" type="text">
+          </label>
+        </div>
+        <label class="capture-field">
+          <span>Notes</span>
+          <input data-field="notes" type="text">
+        </label>
+        <div class="capture-item-actions">
+          <button class="utility-button utility-button-secondary" data-action="remove-item" type="button">Retirer</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="../../capture.js?v=2026-03-30-02" type="module"></script>
+  </body>
+</html>

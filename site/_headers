@@ -1,7 +1,7 @@
 /*
   X-Robots-Tag: noindex, nofollow, noarchive
   Referrer-Policy: no-referrer
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://identity.netlify.com; connect-src 'self' https://identity.netlify.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self' https://identity.netlify.com; frame-src https://identity.netlify.com https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://identity.netlify.com; connect-src 'self' https://identity.netlify.com https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://identity.netlify.com; frame-src https://identity.netlify.com https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests
   X-Frame-Options: DENY
   Permissions-Policy: accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
 
@@ -27,6 +27,18 @@
   Cache-Control: private, no-store, max-age=0
 
 /auth.js
+  Cache-Control: private, no-store, max-age=0
+
+/capture.js
+  Cache-Control: private, no-store, max-age=0
+
+/pwa.js
+  Cache-Control: private, no-store, max-age=0
+
+/sw.js
+  Cache-Control: private, no-store, max-age=0
+
+/manifest.webmanifest
   Cache-Control: private, no-store, max-age=0
 
 /app/data/*

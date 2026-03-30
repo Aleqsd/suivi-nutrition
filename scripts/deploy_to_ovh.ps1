@@ -176,7 +176,7 @@ function Sync-Code {
 
 function Sync-PrivateData {
   Write-Host "[deploy] Syncing private local data to VPS..."
-  Invoke-RemoteCommand "mkdir -p $RemoteDir/data/journal $RemoteDir/data/profile"
+  Invoke-RemoteCommand "mkdir -p $RemoteDir/data/journal $RemoteDir/data/journal-imports $RemoteDir/data/profile"
   $sshConfig = Resolve-SshConnection
 
   $journalDir = Join-Path $RepoRoot "data/journal/"
@@ -184,9 +184,19 @@ function Sync-PrivateData {
     Invoke-RsyncSync -Source (Convert-ToWslPath $journalDir) -Destination "$($sshConfig.User)@$($sshConfig.Host):$RemoteDir/data/journal/"
   }
 
+  $journalImportsDir = Join-Path $RepoRoot "data/journal-imports/"
+  if (Test-Path $journalImportsDir) {
+    Invoke-RsyncSync -Source (Convert-ToWslPath $journalImportsDir) -Destination "$($sshConfig.User)@$($sshConfig.Host):$RemoteDir/data/journal-imports/"
+  }
+
   $currentProfile = Join-Path $RepoRoot "data/profile/current.yaml"
   if (Test-Path $currentProfile) {
     Invoke-RsyncSync -Source (Convert-ToWslPath $currentProfile) -Destination "$($sshConfig.User)@$($sshConfig.Host):$RemoteDir/data/profile/current.yaml"
+  }
+
+  $captureEnvFile = Join-Path $RepoRoot ".env.capture"
+  if (Test-Path $captureEnvFile) {
+    Invoke-RsyncSync -Source (Convert-ToWslPath $captureEnvFile) -Destination "$($sshConfig.User)@$($sshConfig.Host):$RemoteDir/.env.capture"
   }
 }
 

@@ -12,9 +12,11 @@
 - /.netlify/
 - /tmp/
 - *.log
+- /.env.capture
 - site-preview*.png
 - tmp-*.png
 - /data/journal/
+- /data/journal-imports/
 - /data/raw/
 - /data/profile/current.yaml
 - /data/profile/health-reference.md
@@ -22,7 +24,9 @@
 - /data/derived/
 - /site/app/data/dashboard.json
 P /data/journal/
+P /data/journal-imports/
 P /data/raw/
+P /.env.capture
 P /data/profile/current.yaml
 P /data/profile/health-reference.md
 P /data/normalized/

@@ -23,6 +23,7 @@ WATCH_INTERVAL_SECONDS = 1.0
 
 WATCH_ROOTS = [
     ROOT / "data" / "journal",
+    ROOT / "data" / "journal-imports",
     ROOT / "data" / "profile",
     ROOT / "data" / "reference",
     ROOT / "data" / "raw",

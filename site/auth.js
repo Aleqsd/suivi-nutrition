@@ -4,6 +4,7 @@ const loginButton = document.getElementById("auth-login");
 const logoutButton = document.getElementById("auth-logout");
 const REQUIRED_ROLE = "health";
 const PROTECTED_DATA_PATH = "/app/data/dashboard.json";
+const PROTECTED_PAGES = new Set(["app", "capture"]);
 const authReadyState = createDeferred();
 window.__atlasAuthReady = authReadyState.promise;
 
@@ -35,7 +36,7 @@ function resolveAuthReady(result) {
 }
 
 function setAppAuthState(state) {
-  if (page !== "app") return;
+  if (!PROTECTED_PAGES.has(page)) return;
   document.body.dataset.authState = state;
 }
 
@@ -229,11 +230,11 @@ async function handleUnauthorizedUser() {
 
 function initIdentity() {
   showAuthStateFromUrl();
-  if (page === "app") setAppAuthState("pending");
+  if (PROTECTED_PAGES.has(page)) setAppAuthState("pending");
 
   if (!window.netlifyIdentity) {
     setStatus(AUTH_STATUS_MESSAGES.identity_unavailable, "error");
-    if (page === "app") redirectToLogin("identity_unavailable");
+    if (PROTECTED_PAGES.has(page)) redirectToLogin("identity_unavailable");
     return;
   }
 
@@ -254,7 +255,7 @@ function initIdentity() {
       return;
     }
 
-    if (page === "app") {
+    if (PROTECTED_PAGES.has(page)) {
       await bootstrapAppAccess(user);
       return;
     }
@@ -279,7 +280,7 @@ function initIdentity() {
   window.netlifyIdentity.on("error", (error) => {
     setButtonBusy(false);
     setStatus(error?.message || "Connexion impossible.", "error");
-    if (page === "app") {
+    if (PROTECTED_PAGES.has(page)) {
       console.error("Identity bootstrap failed.", error);
       redirectToLogin("identity_unavailable");
     }
@@ -310,6 +311,12 @@ if (logoutButton) {
     }
   });
 }
+
+window.__atlasGetAccessToken = async function atlasGetAccessToken(forceRefresh = false) {
+  const user = getIdentityUser();
+  if (!user?.jwt) return "";
+  return user.jwt(forceRefresh);
+};
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initIdentity, { once: true });

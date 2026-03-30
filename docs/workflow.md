@@ -32,6 +32,18 @@
 9. Si le serveur local de dev tourne, le dashboard se mettra a jour automatiquement
 10. Ne pas ajouter ces donnees sensibles a Git: elles restent locales ou sur le VPS
 
+## Ajouter un repas depuis une photo Android
+
+1. Installer la PWA Atlas sur Android puis partager une photo vers `Atlas`
+2. L app ouvre `/app/capture/` et envoie la photo vers le service prive du VPS
+3. La photo brute est stockee dans `data/raw/meal-photos/`
+4. L analyse IA produit un brouillon structure
+5. Si la confiance est assez haute et l heure issue de l EXIF d origine, le repas peut etre auto-commit
+6. Sinon, corriger le brouillon dans `/app/capture/` puis enregistrer
+7. Le repas valide est ecrit dans `data/journal-imports/`
+8. Le VPS relance `validate -> normalize -> build_derived -> publish`
+9. Ne pas committer ces imports ni les photos: ils restent prives
+
 ## Mettre a jour le profil
 
 1. Modifier `data/profile/current.yaml`

@@ -101,6 +101,11 @@ def run_public(base_url: str) -> None:
     assert_contains(app_html, "app.js?v=", context="anonymous /app/ shell")
     _, app_index_html = assert_html_ok(urljoin(root_url, "app/index.html"), context="anonymous /app/index.html shell")
     assert_contains(app_index_html, "dashboard-freshness", context="anonymous /app/index.html shell")
+    _, capture_html = assert_html_ok(urljoin(root_url, "app/capture/"), context="anonymous /app/capture/ shell")
+    assert_contains(capture_html, "Ajouter un repas depuis une photo", context="anonymous /app/capture/ shell")
+    manifest = fetch_json(urljoin(root_url, "manifest.webmanifest"))
+    if manifest.get("share_target", {}).get("action") != "/app/share-target/":
+        raise AssertionError("PWA share target must point to /app/share-target/.")
     assert_redirects_to_root(urljoin(root_url, "app/data/dashboard.json"), context="anonymous dashboard JSON")
 
     identity_settings = fetch_json(urljoin(root_url, ".netlify/identity/settings"))

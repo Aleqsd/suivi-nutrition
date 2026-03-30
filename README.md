@@ -44,6 +44,7 @@ suivi-nutrition/
 - `data/profile/current.yaml`: profil courant, traits stables, conditions chroniques, mode de vie, tendances alimentaires
 - `data/profile/health-reference.md`: reference sante humaine consolidee, regeneree depuis les donnees structurees
 - `data/journal/YYYY/MM/YYYY-MM-DD.yaml`: faits dates, mesures, repas, symptomes, evenements, resultats biologiques
+- `data/journal-imports/YYYY/MM/YYYY-MM-DD-photo-<capture_id>.yaml`: imports append-only issus du flux mobile photo
 - `data/raw/`: PDF, exports d applications, bilans bruts et autres sources d origine
 - `data/normalized/`: tables regenerees depuis les sources
 - `data/derived/`: vues et agregats d analyse
@@ -53,6 +54,7 @@ suivi-nutrition/
 - Les donnees de sante reelles ne doivent pas etre committees.
 - Les chemins suivants sont ignores par Git:
   - `data/journal/`
+  - `data/journal-imports/`
   - `data/raw/`
   - `data/profile/current.yaml`
   - `data/profile/health-reference.md`
@@ -97,6 +99,27 @@ Ce script regenere aussi `data/profile/health-reference.md`.
 - Une portion peut etre stockee comme `quantity + unit` ou comme `portion_text`
 - Les macros ne doivent etre renseignees que si elles sont connues ou suffisamment estimables
 - Voir [conversational-logging.md](C:/Users/aleqs/Documents/GitHub/suivi-nutrition/docs/conversational-logging.md) et [day-log.template.yaml](C:/Users/aleqs/Documents/GitHub/suivi-nutrition/data/templates/day-log.template.yaml)
+
+## Flux photo Android
+
+- Le site est maintenant une PWA installable avec `share_target` Android via `site/manifest.webmanifest`
+- La page de capture est `site/app/capture/index.html`
+- Les photos brutes restent hors Git dans `data/raw/meal-photos/`
+- Les repas issus des photos sont ecrits hors Git dans `data/journal-imports/`
+- Le service prive d ingestion tourne sur le VPS via `python scripts/meal_photo_intake_service.py`
+- Le refresh local au VPS se fait via `python scripts/refresh_site_from_vps.py`
+- Variables d environnement VPS attendues pour le flux photo:
+  - `CAPTURE_BASE_URL`
+  - `INTAKE_SHARED_SECRET`
+  - `OPENAI_API_KEY`
+  - `OPENAI_MEAL_VISION_MODEL`
+  - `NETLIFY_SITE_ID`
+  - `NETLIFY_AUTH_TOKEN`
+- Variables optionnelles:
+  - `INTAKE_MAX_UPLOAD_BYTES`
+  - `INTAKE_TICKET_TTL_SECONDS`
+  - `INTAKE_SKIP_PUBLISH=1` pour debug sans deploy Netlify
+- Le proxy HTTPS du sous-domaine capture peut etre provisionne avec `bash scripts/provision_capture_proxy.sh`
 
 ## Site en local a la demande
 

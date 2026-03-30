@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 
-from _common import iter_journal_files, load_yaml, month_key, project_root, validate_day_log, write_csv
+from _common import iter_day_log_files, load_yaml, month_key, project_root, validate_day_log, write_csv
 
 
 ROOT = project_root()
@@ -220,7 +220,7 @@ def write_monthly_csvs(dataset: str, fieldnames: list[str], rows: list[dict]) ->
 
 
 def main() -> int:
-    journal_files = iter_journal_files()
+    journal_files = iter_day_log_files()
     meals: list[dict] = []
     meal_items: list[dict] = []
     body_metrics: list[dict] = []

@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JOURNAL_DIR = ROOT / "data" / "journal"
+JOURNAL_IMPORTS_DIR = ROOT / "data" / "journal-imports"
+RAW_MEAL_PHOTOS_DIR = ROOT / "data" / "raw" / "meal-photos"
 SCHEMA_PATH = ROOT / "schemas" / "day_log.schema.json"
 PROFILE_PATH = ROOT / "data" / "profile" / "current.yaml"
 PROFILE_SCHEMA_PATH = ROOT / "schemas" / "profile.schema.json"
@@ -36,6 +38,14 @@ def project_root() -> Path:
 
 def iter_journal_files() -> list[Path]:
     return sorted(JOURNAL_DIR.rglob("*.yaml"))
+
+
+def iter_imported_journal_files() -> list[Path]:
+    return sorted(JOURNAL_IMPORTS_DIR.rglob("*.yaml"))
+
+
+def iter_day_log_files() -> list[Path]:
+    return sorted(iter_journal_files() + iter_imported_journal_files())
 
 
 def load_yaml(path: Path):
@@ -80,6 +90,18 @@ def month_key(date_value: str) -> str:
 
 def ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def write_yaml(path: Path, document: object) -> None:
+    yaml, _ = require_dependencies()
+    ensure_parent(path)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        yaml.safe_dump(
+            document,
+            handle,
+            allow_unicode=True,
+            sort_keys=False,
+        )
 
 
 def write_csv(path: Path, fieldnames: list[str], rows: Iterable[dict]) -> None:

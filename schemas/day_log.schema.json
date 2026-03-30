@@ -344,7 +344,8 @@
             "realtime",
             "same_day_recall",
             "historical_recall",
-            "import"
+            "import",
+            "photo_share"
           ]
         },
         "confidence": {
