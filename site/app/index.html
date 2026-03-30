@@ -30,6 +30,25 @@
             <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🍽️</span><span>Aliments les plus fréquents</span></h2>
             <p>Cette vue montre rapidement ce qui revient le plus souvent dans les repas déjà saisis.</p>
           </div>
+          <div class="section-toolbar">
+            <div class="toolbar-group" data-control="window">
+              <span class="toolbar-label">Période</span>
+              <div class="toolbar-buttons">
+                <button class="toolbar-button" type="button" data-time-window="7">7j</button>
+                <button class="toolbar-button is-active" type="button" data-time-window="30">30j</button>
+                <button class="toolbar-button" type="button" data-time-window="90">90j</button>
+              </div>
+            </div>
+            <div class="toolbar-group" data-control="food-sort">
+              <span class="toolbar-label">Trier</span>
+              <div class="toolbar-buttons">
+                <button class="toolbar-button is-active" type="button" data-food-sort="occurrence">Fréquence</button>
+                <button class="toolbar-button" type="button" data-food-sort="kcal">kcal estimées</button>
+                <button class="toolbar-button" type="button" data-food-sort="quantity">Quantité</button>
+                <button class="toolbar-button" type="button" data-food-sort="days">Jours distincts</button>
+              </div>
+            </div>
+          </div>
           <div class="food-table-wrap">
             <table class="food-table">
               <thead>
@@ -39,6 +58,7 @@
                   <th>Occurrences</th>
                   <th>Jours distincts</th>
                   <th>Quantite totale</th>
+                  <th>kcal estimées</th>
                   <th>Exemples de portions</th>
                 </tr>
               </thead>
@@ -54,6 +74,16 @@
             <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🍴</span><span>Derniers repas enregistrés</span></h2>
             <p>Les derniers repas saisis en conversation restent visibles ici avec portions, icônes et types d'aliments.</p>
           </div>
+          <div class="section-toolbar">
+            <div class="toolbar-group" data-control="window">
+              <span class="toolbar-label">Période</span>
+              <div class="toolbar-buttons">
+                <button class="toolbar-button" type="button" data-time-window="7">7j</button>
+                <button class="toolbar-button is-active" type="button" data-time-window="30">30j</button>
+                <button class="toolbar-button" type="button" data-time-window="90">90j</button>
+              </div>
+            </div>
+          </div>
           <div class="meal-card-grid" id="recent-meals"></div>
           <div class="meal-pagination" id="recent-meals-pagination"></div>
         </section>
@@ -62,6 +92,16 @@
           <div class="section-head compact">
             <p class="eyebrow">Signaux</p>
             <h2 id="signal-title" class="title-with-icon"><span class="title-icon" aria-hidden="true">✦</span><span>Ce qui ressort en ce moment</span></h2>
+          </div>
+          <div class="section-toolbar">
+            <div class="toolbar-group" data-control="window">
+              <span class="toolbar-label">Période</span>
+              <div class="toolbar-buttons">
+                <button class="toolbar-button" type="button" data-time-window="7">7j</button>
+                <button class="toolbar-button is-active" type="button" data-time-window="30">30j</button>
+                <button class="toolbar-button" type="button" data-time-window="90">90j</button>
+              </div>
+            </div>
           </div>
           <div class="signal-list" id="signal-list"></div>
           <div id="nutrition-balance"></div>
@@ -73,6 +113,13 @@
             <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🧾</span><span>Contexte stable et base actuelle</span></h2>
             <p>Informations de santé de référence extraites du profil structuré et de la fiche de synthèse.</p>
           </div>
+          <div class="section-toolbar">
+            <div class="toolbar-group" data-control="window">
+              <span class="toolbar-label">Fenêtre active</span>
+              <span class="toolbar-info">Contexte filtré dynamiquement sur les 30j</span>
+            </div>
+          </div>
+          <div id="profile-quick-stats" class="profile-quick-stats" aria-live="polite"></div>
           <div class="summary-stack" id="reference-sections"></div>
         </section>
 

@@ -756,7 +756,11 @@ def build_who_comparison(scope: dict) -> list[dict]:
 
     comparisons: list[dict] = []
 
-    if produce_avg >= 400:
+    produce_target = 400.0
+    produce_gap = produce_avg - produce_target
+    produce_progress = min((produce_avg / produce_target) * 100, 100.0) if produce_target > 0 else 0.0
+
+    if produce_avg >= produce_target:
         produce_status = "good"
         produce_message = (
             f"Environ {round(produce_avg)} g/jour couvert de fruits et légumes: "
@@ -781,10 +785,18 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "label": "Fruits et légumes",
             "shortMessage": produce_message,
             "recommendedTarget": "Viser environ 400 g/jour de fruits et légumes sur les jours couverts.",
+            "targetValue": produce_target,
+            "currentValue": produce_avg,
+            "unit": "g/j",
+            "progressPct": round(produce_progress, 1),
+            "delta": round(produce_gap, 1),
         }
     )
 
-    if fat_share <= 12:
+    fat_target = 12.0
+    fat_gap = fat_share - fat_target
+    fat_progress = min((fat_share / fat_target) * 100, 100.0) if fat_target > 0 else 0.0
+    if fat_share <= fat_target:
         fat_status = "good"
         fat_message = f"Les matières grasses ajoutées restent contenues, autour de {round(fat_share)} % des kcal estimées."
     else:
@@ -800,10 +812,18 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "label": "Matières grasses ajoutées",
             "shortMessage": fat_message,
             "recommendedTarget": "Garder les matières grasses ajoutées modestes et surtout régulières plutôt qu'abondantes.",
+            "targetValue": fat_target,
+            "currentValue": fat_share,
+            "unit": "% kcal",
+            "progressPct": round(fat_progress, 1),
+            "delta": round(fat_gap, 1),
         }
     )
 
-    if starch_share <= 45:
+    starch_target = 45.0
+    starch_gap = starch_share - starch_target
+    starch_progress = min((starch_share / starch_target) * 100, 100.0) if starch_target > 0 else 0.0
+    if starch_share <= starch_target:
         starch_status = "good"
         starch_message = f"Les féculents pèsent environ {round(starch_share)} % des kcal estimées sans écraser le reste."
     elif starch_share <= 60:
@@ -819,9 +839,17 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "label": "Poids des féculents",
             "shortMessage": starch_message,
             "recommendedTarget": "Éviter qu'une seule base féculente prenne systématiquement la plus grosse part du total.",
+            "targetValue": starch_target,
+            "currentValue": starch_share,
+            "unit": "% kcal",
+            "progressPct": round(starch_progress, 1),
+            "delta": round(starch_gap, 1),
         }
     )
 
+    diversity_target = 4.0
+    diversity_gap = meaningful_categories - diversity_target
+    diversity_progress = min((meaningful_categories / diversity_target) * 100, 100.0) if diversity_target > 0 else 0.0
     if meaningful_categories >= 4:
         diversity_status = "good"
         diversity_message = f"La répartition reste assez variée, avec {meaningful_categories} catégories qui comptent vraiment."
@@ -838,15 +866,20 @@ def build_who_comparison(scope: dict) -> list[dict]:
             "label": "Diversité alimentaire",
             "shortMessage": diversity_message,
             "recommendedTarget": "Chercher au moins 4 catégories qui contribuent réellement sur la période.",
+            "targetValue": diversity_target,
+            "currentValue": float(meaningful_categories),
+            "unit": "catégories",
+            "progressPct": round(diversity_progress, 1),
+            "delta": round(diversity_gap, 1),
         }
     )
 
     return comparisons
 
 
-def build_nutrition_balance(food_reference: dict[str, dict]) -> dict:
+def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = NUTRITION_BALANCE_WINDOW_DAYS) -> dict:
     end_date = date.today()
-    start_date = end_date - timedelta(days=NUTRITION_BALANCE_WINDOW_DAYS - 1)
+    start_date = end_date - timedelta(days=max(window_days, 1) - 1)
     rows = load_all_meal_items()
 
     filtered_rows: list[dict] = []
@@ -934,7 +967,7 @@ def build_nutrition_balance(food_reference: dict[str, dict]) -> dict:
         scopes[scope_key] = scope
 
     return {
-        "windowDays": NUTRITION_BALANCE_WINDOW_DAYS,
+        "windowDays": window_days,
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
         "scopes": scopes,
@@ -1175,26 +1208,40 @@ def build_dashboard_site_data() -> dict:
     latest_lab_date, latest_lab_panel = load_latest_lab_panel()
     latest_lab_cards = build_lab_cards(latest_lab_panel)
     food_frequency = load_food_frequency()
+    meal_items = load_all_meal_items()
     timeline = build_timeline()
 
-    top_food_frequency = sorted(
-        food_frequency,
-        key=lambda row: (-int(row.get("occurrence_count", 0)), row.get("label", "")),
-    )[:12]
+    energy_by_month_food_key: dict[tuple[str, str], float] = {}
+    for row in meal_items:
+        if row.get("is_duplicate") == "true":
+            continue
+        month = str(row.get("month", "")).strip()
+        food_key = str(row.get("food_key", "")).strip()
+        if not month or not food_key:
+            continue
+        energy = parse_numeric(row.get("energy_kcal")) or 0.0
+        if energy <= 0:
+            continue
+        energy_by_month_food_key[(month, food_key)] = energy_by_month_food_key.get((month, food_key), 0.0) + energy
+
+    top_food_frequency = food_frequency[:]
     for row in top_food_frequency:
+        month = str(row.get("month", "")).strip()
+        food_key = str(row.get("food_key", "")).strip()
         category = resolve_food_category(
             food_reference,
-            row.get("food_key", ""),
+            food_key,
             row.get("label", ""),
         )
         category_keys, category_labels = normalize_food_category_labels(
             food_reference,
-            row.get("food_key", ""),
+            food_key,
             row.get("label", ""),
         )
+        total_energy_kcal = energy_by_month_food_key.get((month, food_key), 0.0)
         row["icon"] = resolve_food_icon(
             food_reference,
-            row.get("food_key", ""),
+            food_key,
             row.get("label", ""),
         )
         row["category_key"] = category
@@ -1205,6 +1252,7 @@ def build_dashboard_site_data() -> dict:
         row["categoryLabels"] = category_labels
         row["label"] = normalize_display_text(row.get("label", ""))
         row["portion_text_examples"] = normalize_display_text(row.get("portion_text_examples", ""))
+        row["total_energy_kcal"] = str(round(total_energy_kcal, 1))
 
     dashboard = {
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
@@ -1220,7 +1268,16 @@ def build_dashboard_site_data() -> dict:
         "timeline": timeline,
         "weightHistory": build_weight_history(profile),
         "signals": build_signal_list(profile, latest_lab_cards),
-        "nutritionBalance": build_nutrition_balance(food_reference),
+        "nutritionBalance": {
+            "defaultWindowDays": NUTRITION_BALANCE_WINDOW_DAYS,
+            "windows": {
+                str(window_days): build_nutrition_balance(
+                    food_reference,
+                    window_days=window_days,
+                )
+                for window_days in [7, 30, 90]
+            },
+        },
         "digestiveFocus": build_digestive_focus(profile, timeline, all_lab_rows),
         "foodFrequency": top_food_frequency,
         "sourceDocuments": build_source_documents(),

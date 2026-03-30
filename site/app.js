@@ -1,8 +1,11 @@
 const state = {
   dashboard: null,
   nutritionScope: "all",
+  nutritionWindowDays: "30",
   mealsPage: 1,
   foodsPage: 1,
+  foodSort: "occurrence",
+  foodSortDirection: "desc",
   refreshTimer: null,
   refreshInFlight: false,
 };
@@ -65,6 +68,93 @@ function parseNumeric(value) {
   return match ? Number(match[0].replace(",", ".")) : null;
 }
 
+function parseDateText(value) {
+  if (!value) return null;
+  const text = String(value).trim().slice(0, 10);
+  const parts = text.split("-");
+  if (parts.length !== 3) return null;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.valueOf())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function parseMonthToDate(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(text)) return null;
+  const [year, month] = text.split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+  const date = new Date(year, month - 1, 1);
+  return Number.isNaN(date.valueOf()) ? null : date;
+}
+
+function formatShortDate(value) {
+  const date = parseDateText(value);
+  if (!date) return String(value || "Date inconnue");
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    weekday: "long",
+  });
+}
+
+function getDashboardReferenceDate(data) {
+  const meals = Array.isArray(data?.recentMeals) ? data.recentMeals : [];
+  const mealDates = meals
+    .map((meal) => parseDateText(meal.date))
+    .filter(Boolean)
+    .sort((a, b) => b - a);
+  if (mealDates.length) return mealDates[0];
+  const generatedAt = parseDateText(data?.generatedAt);
+  if (generatedAt) return generatedAt;
+  return new Date();
+}
+
+function getWindowDateRange(data, days) {
+  const windowDays = Number(days) || 30;
+  const endDate = getDashboardReferenceDate(data);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - Math.max(windowDays, 1) + 1);
+  return {
+    startDate,
+    endDate,
+  };
+}
+
+function filterByWindowDate(rows, dateKey, days, referenceDate) {
+  const endDate = referenceDate instanceof Date ? referenceDate : getDashboardReferenceDate({ generatedAt: referenceDate });
+  const cutoff = getWindowDateRange({ generatedAt: endDate.toISOString() }, days).startDate;
+  return rows.filter((row) => {
+    const parsed = parseDateText(row?.[dateKey]);
+    if (!parsed) return false;
+    return parsed >= cutoff && parsed <= endDate;
+  });
+}
+
+function filterByWindowMonth(rows, monthKey, days, referenceDate) {
+  const endDate = referenceDate instanceof Date ? referenceDate : getDashboardReferenceDate({ generatedAt: referenceDate });
+  const cutoff = getWindowDateRange({ generatedAt: endDate.toISOString() }, days).startDate;
+  return rows.filter((row) => {
+    const parsed = parseMonthToDate(row?.[monthKey]);
+    if (!parsed) return false;
+    return parsed >= cutoff && parsed <= endDate;
+  });
+}
+
+function normalizeFoodRows(rows) {
+  return (rows || []).map((row) => ({
+    ...row,
+    occurrence_count: parseNumeric(row.occurrence_count) || 0,
+    distinct_days: parseNumeric(row.distinct_days) || 0,
+    total_quantity: parseNumeric(row.total_quantity) || 0,
+    total_energy_kcal: parseNumeric(row.total_energy_kcal) || 0,
+  }));
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -115,15 +205,19 @@ function foodCategoryFromKey(categoryKey) {
   return text.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function foodCategoryChips(categoryKeys, categoryLabels) {
+function foodCategoryChips(categoryKeys, categoryLabels, maxVisible = 3) {
   const keys = Array.isArray(categoryKeys) ? categoryKeys.filter(Boolean) : [];
   const labels = Array.isArray(categoryLabels) ? categoryLabels : [];
   if (!keys.length) return "";
-  return keys.map((key, index) => {
+  const visibleKeys = keys.slice(0, maxVisible);
+  const hiddenCount = Math.max(keys.length - visibleKeys.length, 0);
+  const visible = visibleKeys.map((key, index) => {
     const tone = foodCategoryTone(key);
     const label = labels[index] || foodCategoryFromKey(key);
     return `<span class="food-category-chip" data-tone="${escapeHtml(tone)}">${escapeHtml(label)}</span>`;
   }).join("");
+  const summary = hiddenCount ? `<span class="food-category-chip chip-more">+${hiddenCount}</span>` : "";
+  return `${visible}${summary}`;
 }
 
 function renderFreshness(data) {
@@ -218,7 +312,16 @@ function renderNutritionBalance(data) {
   if (!target) return;
 
   const balance = data.nutritionBalance || {};
-  const scopes = balance.scopes || {};
+  const windows = balance.windows || {};
+  const defaultWindow = String(
+    Number(state.nutritionWindowDays) || balance.defaultWindowDays || 30
+  );
+  const windowKeys = Object.keys(windows);
+  const activeWindow = windows[defaultWindow]
+    ? String(defaultWindow)
+    : (windowKeys.length ? windowKeys[0] : String(balance.windowDays || defaultWindow));
+  const scopedBalance = windows[activeWindow] || balance;
+  const scopes = scopedBalance.scopes || {};
   const scopeKey = scopes[state.nutritionScope] ? state.nutritionScope : "all";
   const scope = scopes[scopeKey];
 
@@ -234,16 +337,36 @@ function renderNutritionBalance(data) {
     </button>
   `).join("");
 
-  const comparisonCards = (scope.whoComparison || []).map((item) => `
-    <article class="nutrition-compare-card" data-status="${escapeHtml(item.status || "watch")}">
-      <div class="nutrition-compare-top">
-        <strong>${escapeHtml(item.label || "Repère")}</strong>
-        <span class="nutrition-compare-status">${escapeHtml(nutritionStatusLabel(item.status))}</span>
-      </div>
-      <p>${escapeHtml(item.shortMessage || "")}</p>
-      <span class="nutrition-compare-target">${escapeHtml(item.recommendedTarget || "")}</span>
-    </article>
-  `).join("");
+  const windowLabel = `${activeWindow} derniers jours`;
+
+  const comparisonCards = (scope.whoComparison || []).map((item) => {
+    const currentValue = parseNumeric(item.currentValue);
+    const targetValue = parseNumeric(item.targetValue);
+    const unit = String(item.unit || "");
+    const delta = parseNumeric(item.delta);
+    const progress = parseNumeric(item.progressPct);
+    const progressPct = Number.isFinite(progress) ? Math.max(0, Math.min(progress, 100)) : 0;
+    const current = currentValue === null ? "—" : `${Math.round(currentValue)}${unit ? ` ${unit}` : ""}`;
+    const target = targetValue === null ? "—" : `${Math.round(targetValue)}${unit ? ` ${unit}` : ""}`;
+    const deltaLabel = delta === null ? "" : `(${delta >= 0 ? "+" : ""}${delta}${unit ? ` ${unit}` : ""} vs cible)`;
+
+    return `
+      <article class="nutrition-compare-card" data-status="${escapeHtml(item.status || "watch")}">
+        <div class="nutrition-compare-top">
+          <strong>${escapeHtml(item.label || "Repère")}</strong>
+          <span class="nutrition-compare-status">${escapeHtml(nutritionStatusLabel(item.status))}</span>
+        </div>
+        <p>${escapeHtml(item.shortMessage || "")}</p>
+        <span class="nutrition-compare-target">${escapeHtml(item.recommendedTarget || "")}</span>
+        <div class="nutrition-compare-progress">
+          <span class="nutrition-compare-progress-values">${escapeHtml(current)} ${escapeHtml(`sur ${target}`)} ${escapeHtml(deltaLabel)}</span>
+          <div class="nutrition-compare-progress-track" role="img" aria-label="Comparatif pour ${escapeHtml(item.label || "repère")}">
+            <span class="nutrition-compare-progress-fill" style="width:${escapeHtml(progressPct.toFixed(1))}%;"></span>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
 
   if (!scope.categoryShares.length || !scope.totalKcal) {
     target.innerHTML = `
@@ -251,12 +374,12 @@ function renderNutritionBalance(data) {
         <div class="nutrition-balance-head">
           <div>
             <p class="panel-kicker">Répartition nutritionnelle récente</p>
-            <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🥗</span><span>30 derniers jours</span></h3>
+            <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🥗</span><span>${escapeHtml(windowLabel)}</span></h3>
             <p>Lecture calorique par catégorie et repères inspirés OMS.</p>
           </div>
           <div class="nutrition-scope-tabs">${tabs}</div>
         </div>
-        <div class="empty-state">Aucune donnée exploitable pour cette vue sur les 30 derniers jours.</div>
+        <div class="empty-state">Aucune donnée exploitable pour cette vue sur cette fenêtre.</div>
       </article>
     `;
   } else {
@@ -275,7 +398,7 @@ function renderNutritionBalance(data) {
         <div class="nutrition-balance-head">
           <div>
             <p class="panel-kicker">Répartition nutritionnelle récente</p>
-            <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🥗</span><span>30 derniers jours</span></h3>
+            <h3 class="title-with-icon small"><span class="title-icon" aria-hidden="true">🥗</span><span>${escapeHtml(windowLabel)}</span></h3>
             <p>Lecture calorique par catégorie et repères inspirés OMS, sans prétention de conformité réglementaire.</p>
           </div>
           <div class="nutrition-scope-tabs">${tabs}</div>
@@ -320,32 +443,44 @@ function renderNutritionBalance(data) {
   });
 }
 
-function renderRecentMeals(data) {
-  const container = document.getElementById("recent-meals");
-  const pagination = document.getElementById("recent-meals-pagination");
-  const meals = data.recentMeals || [];
-  container.innerHTML = "";
-  if (pagination) pagination.innerHTML = "";
-  if (!meals.length) {
-    container.innerHTML = `<div class="empty-state">Aucun repas saisi pour le moment. Les prochains repas apparaîtront ici en premier.</div>`;
-    return;
-  }
+function estimateMealDensityStats(meal) {
+  const assessment = meal?.assessment || {};
+  const estimatedEnergy = parseNumeric(assessment.estimatedEnergyKcal);
+  const items = Array.isArray(meal?.items) ? meal.items : [];
+  if (estimatedEnergy === null) return "";
+  const totalWeight = items.reduce((total, item) => {
+    const text = item?.quantityText || item?.portionText || "";
+    const match = String(text).match(/(-?\d+(?:[.,]\d+)?)\s*(g|grammes?|ml|cl|l|L|verre|piece|pièces?|tranche)/i);
+    if (!match) return total;
+    const amount = Number(match[1].replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) return total;
+    const unit = (match[2] || "").toLowerCase();
+    if (unit.includes("g") && !unit.includes("ml") && !unit.includes("cl")) {
+      return total + amount;
+    }
+    return total;
+  }, 0);
+  const itemCount = items.length || 1;
+  const byWeight = totalWeight > 0 ? Math.round(estimatedEnergy / (totalWeight / 100)) : null;
+  const byItem = Math.round(estimatedEnergy / itemCount);
+  const perItemLabel = `${byItem} kcal / élément`;
+  const per100gLabel = byWeight === null ? "" : `${byWeight} kcal/100g`;
+  return byWeight === null ? perItemLabel : `${per100gLabel} • ${perItemLabel}`;
+}
 
-  const totalPages = Math.max(1, Math.ceil(meals.length / MEALS_PER_PAGE));
-  state.mealsPage = Math.min(Math.max(state.mealsPage, 1), totalPages);
-  const startIndex = (state.mealsPage - 1) * MEALS_PER_PAGE;
-  const visibleMeals = meals.slice(startIndex, startIndex + MEALS_PER_PAGE);
-
-  visibleMeals.forEach((meal) => {
+function buildMealCardsForDateGroup(meals, data) {
+  return meals.map((meal) => {
     const article = document.createElement("article");
     article.className = "meal-card";
     const estimatedCount = (meal.items || []).filter((item) => item.quantitySource === "estimated").length;
     const assessment = meal.assessment || {};
     const recommendations = (assessment.recommendations || []).filter(Boolean);
     const hasAssessment = assessment.estimatedEnergyKcal || assessment.qualityScore || recommendations.length;
+    const hasEstimatedEnergy = parseNumeric(assessment.estimatedEnergyKcal) !== null;
     const hasScore = assessment.qualityScore !== null && assessment.qualityScore !== undefined && assessment.qualityScore !== "";
     const badgeTone = hasScore ? mealScoreTone(assessment.qualityScore) : (estimatedCount ? "estimated" : "exact");
-    const badgeLabel = hasScore ? `Score ${assessment.qualityScore}/100` : (estimatedCount ? `${estimatedCount} estimés` : "Structure");
+    const badgeLabel = hasEstimatedEnergy ? "Estimation kcal" : (estimatedCount ? `${estimatedCount} estimés` : "Structure");
+    const density = estimateMealDensityStats(meal);
     article.innerHTML = `
       <div class="meal-card-head">
         <div>
@@ -354,7 +489,6 @@ function renderRecentMeals(data) {
           <div class="meal-meta">
             <span>${escapeHtml(meal.time || "Heure non précisée")}</span>
             <span>${escapeHtml(prettyLabel(meal.captureMethod || "manual"))}</span>
-            <span>${escapeHtml(prettyLabel(meal.confidence || "unknown"))} confiance</span>
           </div>
         </div>
         <div class="meal-badge" data-tone="${badgeTone}">
@@ -369,6 +503,12 @@ function renderRecentMeals(data) {
               <div class="meal-stat">
                 <span class="meal-stat-label">Estimation</span>
                 <strong>${escapeHtml(String(assessment.estimatedEnergyKcal))} kcal</strong>
+              </div>
+            ` : ""}
+            ${density ? `
+              <div class="meal-stat">
+                <span class="meal-stat-label">Densité</span>
+                <strong>${escapeHtml(density)}</strong>
               </div>
             ` : ""}
           </div>
@@ -395,6 +535,7 @@ function renderRecentMeals(data) {
                 ${(item.categoryKeys || item.categoryKey) ? foodCategoryChips(
                   item.categoryKeys || (item.categoryKey ? [item.categoryKey] : []),
                   item.categoryLabels || (item.categoryLabel ? [item.categoryLabel] : []),
+                  2,
                 ) : ""}
               </div>
             </div>
@@ -402,7 +543,63 @@ function renderRecentMeals(data) {
         `).join("")}
       </div>
     `;
-    container.appendChild(article);
+    return article;
+  });
+}
+
+function groupMealsByDate(meals) {
+  const groups = new Map();
+  meals.forEach((meal) => {
+    const key = meal.date || "Date inconnue";
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(meal);
+  });
+  return [...groups.entries()].sort((a, b) => {
+    const dateA = parseDateText(a[0]) || new Date(0);
+    const dateB = parseDateText(b[0]) || new Date(0);
+    return dateB - dateA || b[0].localeCompare(a[0]);
+  });
+}
+
+function renderRecentMeals(data) {
+  const container = document.getElementById("recent-meals");
+  const pagination = document.getElementById("recent-meals-pagination");
+  const windowDays = Number(state.nutritionWindowDays) || 30;
+  const range = getWindowDateRange(data, windowDays);
+  const meals = filterByWindowDate(data.recentMeals || [], "date", windowDays, range.endDate)
+    .filter((meal) => meal && meal.date)
+    .sort((a, b) => parseDateText(b.date) - parseDateText(a.date));
+  container.innerHTML = "";
+  if (pagination) pagination.innerHTML = "";
+  if (!meals.length) {
+    container.innerHTML = `<div class="empty-state">Aucun repas saisi pour le moment. Les prochains repas apparaîtront ici en premier.</div>`;
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(meals.length / MEALS_PER_PAGE));
+  state.mealsPage = Math.min(Math.max(state.mealsPage, 1), totalPages);
+  const startIndex = (state.mealsPage - 1) * MEALS_PER_PAGE;
+  const visibleMeals = meals.slice(startIndex, startIndex + MEALS_PER_PAGE);
+  const groupedMeals = groupMealsByDate(visibleMeals);
+  groupedMeals.forEach(([groupDate, groupMeals]) => {
+    const section = document.createElement("section");
+    section.className = "meal-day-group";
+    section.innerHTML = `
+      <div class="meal-day-header">
+        <h4>${escapeHtml(formatShortDate(groupDate))}</h4>
+        <span>${escapeHtml(String(groupMeals.length))} repas</span>
+      </div>
+    `;
+
+    const grid = document.createElement("div");
+    grid.className = "meal-card-grid";
+    buildMealCardsForDateGroup(groupMeals, data).forEach((mealNode) => {
+      grid.appendChild(mealNode);
+    });
+    section.appendChild(grid);
+    container.appendChild(section);
   });
 
   if (pagination && totalPages > 1) {
@@ -482,6 +679,40 @@ function formatDelta(value) {
   if (Number.isNaN(numeric) || numeric === 0) return "Stable vs précédent";
   const prefix = numeric > 0 ? "+" : "";
   return `${prefix}${numeric}`;
+}
+
+function getFoodSortValue(row, sortMode) {
+  const values = {
+    occurrence: parseNumeric(row.occurrence_count),
+    kcal: parseNumeric(row.total_energy_kcal),
+    quantity: parseNumeric(row.total_quantity),
+    days: parseNumeric(row.distinct_days),
+  };
+  return values[sortMode] ?? "";
+}
+
+function sortFoodRows(rows, sortMode, direction = "desc") {
+  const directionFactor = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const first = getFoodSortValue(a, sortMode);
+    const second = getFoodSortValue(b, sortMode);
+    if (typeof first === "number" && typeof second === "number") {
+      if (first === second) return 0;
+      return (first - second) * directionFactor;
+    }
+    if (typeof first === "string" && typeof second === "string") {
+      return first.localeCompare(second) * directionFactor;
+    }
+    if (first === null || first === undefined || first === "") return 1;
+    if (second === null || second === undefined || second === "") return -1;
+    return 0;
+  });
+}
+
+function buildFoodWindowRows(data) {
+  const windowDays = Number(state.nutritionWindowDays) || 30;
+  const range = getWindowDateRange(data, windowDays);
+  return filterByWindowMonth(data.foodFrequency || [], "month", windowDays, range.endDate);
 }
 
 function deltaTone(value) {
@@ -773,13 +1004,18 @@ function renderTimeline(data) {
 }
 
 function renderFoodTable(data) {
+  const sortMode = state.foodSort || "occurrence";
   const body = document.getElementById("food-table-body");
   const pagination = document.getElementById("food-table-pagination");
   body.innerHTML = "";
   if (pagination) pagination.innerHTML = "";
-  const foods = data.foodFrequency || [];
+  const foods = sortFoodRows(
+    normalizeFoodRows(buildFoodWindowRows(data)),
+    sortMode,
+    state.foodSortDirection,
+  );
   if (!foods.length) {
-    body.innerHTML = `<tr><td colspan="6">Aucune fréquence alimentaire disponible pour le moment. Commence à saisir des repas pour remplir cette table.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7">Aucune fréquence alimentaire disponible pour le moment. Commence à saisir des repas pour remplir cette table.</td></tr>`;
     return;
   }
 
@@ -799,6 +1035,7 @@ function renderFoodTable(data) {
       <td>${escapeHtml(String(row.occurrence_count || ""))}</td>
       <td>${escapeHtml(String(row.distinct_days || ""))}</td>
       <td>${escapeHtml(row.total_quantity ? `${row.total_quantity} ${row.unit || ""}` : "—")}</td>
+      <td>${escapeHtml(row.total_energy_kcal ? `${row.total_energy_kcal} kcal` : "—")}</td>
       <td>${escapeHtml(row.portion_text_examples || "—")}</td>
     `;
     body.appendChild(tr);
@@ -836,6 +1073,116 @@ function renderFoodTable(data) {
   }
 }
 
+function buildProfileQuickStatRows(data) {
+  const summary = data.profileSummary || {};
+  const weight = parseNumeric(summary.weightKg);
+  const height = parseNumeric(summary.heightCm);
+  const imc = (weight && height) ? (weight / Math.pow(height / 100, 2)) : null;
+
+  return [
+    {
+      label: "Période dashboard",
+      value: `${String(Number(state.nutritionWindowDays) || 30)}j`,
+    },
+    {
+      label: "Poids",
+      value: weight ? `${weight} kg` : "—",
+    },
+    {
+      label: "Taille",
+      value: height ? `${height} cm` : "—",
+    },
+    {
+      label: "IMC",
+      value: imc ? `${imc.toFixed(1)}` : "—",
+    },
+    {
+      label: "Activité",
+      value: prettyLabel(summary.activityLevel || "unknown"),
+    },
+    {
+      label: "Sommeil",
+      value: prettyLabel(summary.sleepQuality || "unknown"),
+    },
+  ];
+}
+
+function renderProfileQuickStats(data) {
+  const target = document.getElementById("profile-quick-stats");
+  if (!target) return;
+  const rows = buildProfileQuickStatRows(data);
+  target.innerHTML = rows
+    .map((row) => `
+      <article class="profile-quick-stat">
+        <span class="quick-label">${escapeHtml(row.label)}</span>
+        <span class="quick-value">${escapeHtml(String(row.value))}</span>
+      </article>
+    `)
+    .join("");
+  const profileWindowInfo = document.querySelector(".two-column .toolbar-info");
+  if (profileWindowInfo) {
+    profileWindowInfo.textContent =
+      `Contexte filtré dynamiquement sur ${String(Number(state.nutritionWindowDays) || 30)} derniers jours`;
+  }
+}
+
+function syncSectionControlsState() {
+  const windowButtons = document.querySelectorAll('[data-control="window"] .toolbar-button[data-time-window]');
+  const activeWindow = String(Number(state.nutritionWindowDays) || 30);
+  windowButtons.forEach((button) => {
+    const isActive = button.dataset.timeWindow === activeWindow;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+
+  const sortButtons = document.querySelectorAll('[data-control="food-sort"] .toolbar-button[data-food-sort]');
+  const activeSort = state.foodSort || "occurrence";
+  sortButtons.forEach((button) => {
+    const isActive = button.dataset.foodSort === activeSort;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function setupSectionControls() {
+  if (setupSectionControls._initialized) return;
+  setupSectionControls._initialized = true;
+
+  document.querySelectorAll(".toolbar-button[data-time-window]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const windowDays = Number(button.dataset.timeWindow);
+      if (!windowDays) return;
+      state.nutritionWindowDays = String(windowDays);
+      state.mealsPage = 1;
+      state.foodsPage = 1;
+      syncSectionControlsState();
+      if (!state.dashboard) return;
+      renderFoodTable(state.dashboard);
+      renderRecentMeals(state.dashboard);
+      renderSignals(state.dashboard);
+      renderNutritionBalance(state.dashboard);
+      renderProfileQuickStats(state.dashboard);
+    });
+  });
+
+  document.querySelectorAll(".toolbar-button[data-food-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const sortMode = button.dataset.foodSort;
+      if (!sortMode) return;
+      if (state.foodSort === sortMode) {
+        state.foodSortDirection = state.foodSortDirection === "desc" ? "asc" : "desc";
+      } else {
+        state.foodSort = sortMode;
+        state.foodSortDirection = "desc";
+      }
+      state.foodsPage = 1;
+      syncSectionControlsState();
+      if (!state.dashboard) return;
+      renderFoodTable(state.dashboard);
+    });
+  });
+}
+
 function renderDocuments(data) {
   const target = document.getElementById("document-list");
   target.innerHTML = "";
@@ -854,9 +1201,11 @@ function renderDocuments(data) {
 function renderApp(data) {
   renderFreshness(data);
   renderFoodTable(data);
+  renderProfileQuickStats(data);
   renderSignals(data);
   renderNutritionBalance(data);
   renderRecentMeals(data);
+  syncSectionControlsState();
   renderReferenceSections(data);
   renderLabs(data);
   renderDigestiveFocus(data);
@@ -943,6 +1292,7 @@ function setupFreshnessChecks() {
 async function boot() {
   state.dashboard = await loadDashboard();
   renderApp(state.dashboard);
+  setupSectionControls();
   setupReveal();
   setupLiveReload();
   setupFreshnessChecks();
