@@ -371,18 +371,6 @@ function renderRecentMeals(data) {
                 <strong>${escapeHtml(String(assessment.estimatedEnergyKcal))} kcal</strong>
               </div>
             ` : ""}
-            ${assessment.qualityScore ? `
-              <div class="meal-stat">
-                <span class="meal-stat-label">Score</span>
-                <strong>${escapeHtml(String(assessment.qualityScore))}/100</strong>
-              </div>
-            ` : ""}
-            ${assessment.estimationConfidence ? `
-              <div class="meal-stat">
-                <span class="meal-stat-label">Fiabilité</span>
-                <strong>${escapeHtml(prettyLabel(assessment.estimationConfidence))}</strong>
-              </div>
-            ` : ""}
           </div>
           ${recommendations.length ? `
             <div class="meal-recommendations">
