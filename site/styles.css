@@ -317,6 +317,10 @@ body[data-page="capture"] {
   box-shadow: 0 18px 34px rgba(35, 75, 68, 0.08);
 }
 
+body[data-page="app"] .utility-bar {
+  min-height: 108px;
+}
+
 .utility-brand-block {
   display: grid;
   gap: 10px;
@@ -480,6 +484,16 @@ body[data-page="capture"] .hero::after {
 
 main { display: grid; gap: 28px; }
 .signal-strip, .meal-showcase, .two-column, .steps-section, .lab-section, .focus-layout, .data-stage, .timeline-layout, .diet-layout, .documents { padding: 26px; }
+body[data-page="app"] .diet-layout { min-height: 560px; }
+body[data-page="app"] .meal-showcase { min-height: 520px; }
+body[data-page="app"] .signal-strip { min-height: 420px; }
+body[data-page="app"] .steps-section { min-height: 220px; }
+body[data-page="app"] .two-column { min-height: 340px; }
+body[data-page="app"] .lab-section { min-height: 280px; }
+body[data-page="app"] .focus-layout { min-height: 620px; }
+body[data-page="app"] .data-stage { min-height: 460px; }
+body[data-page="app"] .timeline-layout { min-height: 520px; }
+body[data-page="app"] .documents { min-height: 320px; }
 .signal-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .signal-pill[data-tone="caution"] { background: rgba(159, 91, 54, 0.1); color: var(--caution); }
 .signal-pill[data-tone="anchor"] { background: rgba(35, 75, 68, 0.1); color: var(--anchor); }
@@ -937,6 +951,92 @@ main { display: grid; gap: 28px; }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
+}
+
+#food-table-body,
+#recent-meals,
+#signal-list,
+#nutrition-balance,
+#steps-by-day,
+#profile-quick-stats,
+#reference-sections,
+#lab-grid,
+#digestive-trigger-list,
+#digestive-conditions,
+#digestive-events,
+#digestive-labs,
+#lab-history-grid,
+#weight-chart,
+#monthly-bars,
+#timeline-list,
+#document-list {
+  min-height: 0;
+}
+
+body[data-page="app"] #food-table-body { min-height: 420px; }
+body[data-page="app"] #recent-meals { min-height: 360px; }
+body[data-page="app"] #signal-list { min-height: 44px; }
+body[data-page="app"] #nutrition-balance { min-height: 280px; }
+body[data-page="app"] #steps-by-day { min-height: 92px; }
+body[data-page="app"] #profile-quick-stats { min-height: 132px; }
+body[data-page="app"] #reference-sections { min-height: 160px; }
+body[data-page="app"] #lab-grid { min-height: 140px; }
+body[data-page="app"] #digestive-trigger-list { min-height: 44px; }
+body[data-page="app"] #digestive-conditions,
+body[data-page="app"] #digestive-events,
+body[data-page="app"] #digestive-labs,
+body[data-page="app"] #lab-history-grid { min-height: 140px; }
+body[data-page="app"] #weight-chart,
+body[data-page="app"] #monthly-bars { min-height: 280px; }
+body[data-page="app"] #timeline-list { min-height: 300px; }
+body[data-page="app"] #document-list { min-height: 180px; }
+
+body[data-page="app"][data-auth-state="pending"] #food-table-body:empty,
+body[data-page="app"][data-auth-state="pending"] #recent-meals:empty,
+body[data-page="app"][data-auth-state="pending"] #signal-list:empty,
+body[data-page="app"][data-auth-state="pending"] #nutrition-balance:empty,
+body[data-page="app"][data-auth-state="pending"] #steps-by-day:empty,
+body[data-page="app"][data-auth-state="pending"] #profile-quick-stats:empty,
+body[data-page="app"][data-auth-state="pending"] #reference-sections:empty,
+body[data-page="app"][data-auth-state="pending"] #lab-grid:empty,
+body[data-page="app"][data-auth-state="pending"] #digestive-trigger-list:empty,
+body[data-page="app"][data-auth-state="pending"] #digestive-conditions:empty,
+body[data-page="app"][data-auth-state="pending"] #digestive-events:empty,
+body[data-page="app"][data-auth-state="pending"] #digestive-labs:empty,
+body[data-page="app"][data-auth-state="pending"] #lab-history-grid:empty,
+body[data-page="app"][data-auth-state="pending"] #weight-chart:empty,
+body[data-page="app"][data-auth-state="pending"] #monthly-bars:empty,
+body[data-page="app"][data-auth-state="pending"] #timeline-list:empty,
+body[data-page="app"][data-auth-state="pending"] #document-list:empty {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.62), rgba(248, 241, 227, 0.92), rgba(255, 255, 255, 0.62));
+  background-size: 220% 100%;
+  animation: loading-sheen 1.25s linear infinite;
+}
+
+body[data-page="app"][data-auth-state="pending"] #food-table-body:empty::before,
+body[data-page="app"][data-auth-state="pending"] #recent-meals:empty::before,
+body[data-page="app"][data-auth-state="pending"] #signal-list:empty::before,
+body[data-page="app"][data-auth-state="pending"] #nutrition-balance:empty::before,
+body[data-page="app"][data-auth-state="pending"] #steps-by-day:empty::before,
+body[data-page="app"][data-auth-state="pending"] #profile-quick-stats:empty::before,
+body[data-page="app"][data-auth-state="pending"] #reference-sections:empty::before,
+body[data-page="app"][data-auth-state="pending"] #lab-grid:empty::before,
+body[data-page="app"][data-auth-state="pending"] #digestive-trigger-list:empty::before,
+body[data-page="app"][data-auth-state="pending"] #digestive-conditions:empty::before,
+body[data-page="app"][data-auth-state="pending"] #digestive-events:empty::before,
+body[data-page="app"][data-auth-state="pending"] #digestive-labs:empty::before,
+body[data-page="app"][data-auth-state="pending"] #lab-history-grid:empty::before,
+body[data-page="app"][data-auth-state="pending"] #weight-chart:empty::before,
+body[data-page="app"][data-auth-state="pending"] #monthly-bars:empty::before,
+body[data-page="app"][data-auth-state="pending"] #timeline-list:empty::before,
+body[data-page="app"][data-auth-state="pending"] #document-list:empty::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .meal-day-group {
@@ -1822,6 +1922,16 @@ body[data-page="capture"] .reveal {
   opacity: 1 !important;
   transform: none !important;
   transition: none !important;
+}
+
+@keyframes loading-sheen {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
 }
 .empty-state { padding: 18px; border-radius: 22px; background: rgba(255, 255, 255, 0.42); border: 1px dashed rgba(28, 36, 31, 0.14); color: var(--muted); }
 
