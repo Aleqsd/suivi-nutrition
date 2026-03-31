@@ -28,6 +28,16 @@
     unit: "g"
     portion_text: "2 petits bouts"
 
+- key: "butter"
+  label: "Beurre"
+  category: "fat"
+  icon: "🧈"
+  default_unit: "g"
+  default_portion:
+    quantity: 8
+    unit: "g"
+    portion_text: "un peu"
+
 - key: "orange_juice_fresh"
   label: "Jus d'orange presse maison"
   category: "drink"
@@ -167,6 +177,23 @@
     quantity: 15
     unit: "g"
     portion_text: "1 petite cuillere"
+
+- key: "homemade_fruit_tart"
+  label: "Tarte aux fruits maison"
+  category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 45
+    - category: "fruit"
+      weight: 35
+    - category: "fat"
+      weight: 20
+  icon: "🥧"
+  default_unit: "g"
+  default_portion:
+    quantity: 130
+    unit: "g"
+    portion_text: "1 part"
 
 - key: "rice_cooked"
   label: "Riz cuit"
