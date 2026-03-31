@@ -1436,10 +1436,11 @@ function renderApp(data, { forceAll = false } = {}) {
 
 function setupReveal() {
   const revealNodes = document.querySelectorAll(".reveal");
+  const page = document.body.dataset.page || "";
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const smallViewport = window.matchMedia("(max-width: 980px)").matches;
   const coarsePointer = window.matchMedia("(hover: none), (pointer: coarse)").matches;
-  if (prefersReducedMotion || smallViewport || coarsePointer || !("IntersectionObserver" in window)) {
+  if (page === "app" || page === "capture" || prefersReducedMotion || smallViewport || coarsePointer || !("IntersectionObserver" in window)) {
     document.body.dataset.reveal = "off";
     revealNodes.forEach((node) => node.classList.add("is-visible"));
     return;
