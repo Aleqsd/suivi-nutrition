@@ -5,6 +5,8 @@ const logoutButton = document.getElementById("auth-logout");
 const PROTECTED_DATA_PATH = "/app/data/dashboard.json";
 const PROTECTED_PAGES = new Set(["app", "capture"]);
 const authReadyState = createDeferred();
+const SESSION_RESTORE_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
+const PROTECTED_ACCESS_RETRY_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
 window.__atlasAuthReady = authReadyState.promise;
 
 const AUTH_STATUS_MESSAGES = {
@@ -102,7 +104,6 @@ async function refreshIdentityJwt(user, forceRefresh = false) {
 
 async function probeProtectedDataAccess() {
   const response = await fetch(buildNoStoreUrl(PROTECTED_DATA_PATH), {
-    method: "HEAD",
     cache: "no-store",
     credentials: "same-origin",
     headers: {
@@ -118,31 +119,67 @@ async function probeProtectedDataAccess() {
   };
 }
 
+async function restoreIdentityUser(user = null) {
+  for (const delayMs of SESSION_RESTORE_DELAYS_MS) {
+    if (delayMs) await wait(delayMs);
+
+    const activeUser = getIdentityUser(user);
+    if (!activeUser) continue;
+
+    try {
+      await refreshIdentityJwt(activeUser, delayMs === 0);
+    } catch (error) {
+      console.warn("Identity user restore failed.", error);
+    }
+
+    const restoredUser = getIdentityUser(activeUser);
+    if (restoredUser) {
+      return restoredUser;
+    }
+  }
+
+  return null;
+}
+
 async function waitForProtectedAppAccess(user) {
-  const retryDelays = [0, 250, 750, 1500, 2500];
-  for (const delayMs of retryDelays) {
+  const activeUser = await restoreIdentityUser(user);
+  if (!activeUser) {
+    return {
+      accessReady: false,
+      user: null,
+    };
+  }
+
+  for (const delayMs of PROTECTED_ACCESS_RETRY_DELAYS_MS) {
     if (delayMs) await wait(delayMs);
 
     try {
-      await refreshIdentityJwt(user, delayMs === 0);
+      await refreshIdentityJwt(activeUser, delayMs === 0);
       const probe = await probeProtectedDataAccess();
       if (probe.authorized) {
-        return true;
+        return {
+          accessReady: true,
+          user: getIdentityUser(activeUser) || activeUser,
+        };
       }
     } catch (error) {
       console.warn("Protected app probe failed.", error);
     }
   }
-  return false;
+
+  return {
+    accessReady: false,
+    user: getIdentityUser(activeUser) || activeUser,
+  };
 }
 
 async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
   if (page !== "login") {
     setAppAuthState("pending");
-    const accessReady = await waitForProtectedAppAccess(user);
+    const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
     if (accessReady) {
       setAppAuthState("ready");
-      resolveAuthReady({ authorized: true, user });
+      resolveAuthReady({ authorized: true, user: resolvedUser || user });
       return true;
     }
     redirectToLogin("session_pending");
@@ -157,8 +194,9 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
     "info",
   );
 
-  const accessReady = await waitForProtectedAppAccess(user);
+  const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
   if (accessReady) {
+    resolveAuthReady({ authorized: true, user: resolvedUser || user });
     redirectToApp();
     return true;
   }
@@ -171,19 +209,19 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
 async function bootstrapAppAccess(user) {
   setAppAuthState("pending");
 
-  if (!user) {
-    redirectToLogin();
+  const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
+  if (!resolvedUser) {
+    redirectToLogin("expired");
     return false;
   }
 
-  const accessReady = await waitForProtectedAppAccess(user);
   if (!accessReady) {
-    redirectToLogin("unauthorized");
+    redirectToLogin("session_pending");
     return false;
   }
 
   setAppAuthState("ready");
-  resolveAuthReady({ authorized: true, user });
+  resolveAuthReady({ authorized: true, user: resolvedUser });
   return true;
 }
 
