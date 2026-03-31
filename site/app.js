@@ -9,11 +9,27 @@ const state = {
   foodSortDirection: "desc",
   refreshTimer: null,
   refreshInFlight: false,
+  renderSignatures: {},
 };
 
 const REFRESH_INTERVAL_MS = 60000;
 const MEALS_PER_PAGE = 3;
 const FOODS_PER_PAGE = 10;
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "short",
+  weekday: "long",
+});
+const FRESHNESS_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZone: "Europe/Paris",
+  hour12: false,
+});
 
 class AuthRedirectError extends Error {
   constructor(reason = "expired") {
@@ -113,11 +129,7 @@ function parseMonthToDate(value) {
 function formatShortDate(value) {
   const date = parseDateText(value);
   if (!date) return String(value || "Date inconnue");
-  return date.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    weekday: "long",
-  });
+  return SHORT_DATE_FORMATTER.format(date);
 }
 
 function getDashboardReferenceDate(data) {
@@ -282,16 +294,7 @@ function renderFreshness(data) {
   const parsed = new Date(generatedAt);
   const formatted = Number.isNaN(parsed.valueOf())
     ? generatedAt
-    : parsed.toLocaleString("fr-FR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      timeZone: "Europe/Paris",
-      hour12: false,
-    });
+    : FRESHNESS_FORMATTER.format(parsed);
   target.textContent = `Dernière mise à jour: ${formatted}`;
 }
 
@@ -1349,26 +1352,99 @@ function renderDocuments(data) {
   });
 }
 
-function renderApp(data) {
-  renderFreshness(data);
-  renderFoodTable(data);
-  renderDailySteps(data);
-  renderProfileQuickStats(data);
-  renderSignals(data);
-  renderNutritionBalance(data);
-  renderRecentMeals(data);
+function serializeSignature(value) {
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? String(value ?? "") : serialized;
+}
+
+function buildRenderSignatures(data) {
+  return {
+    freshness: serializeSignature(data?.generatedAt || ""),
+    foodTable: serializeSignature({
+      windowDays: state.nutritionWindowDays,
+      sort: state.foodSort,
+      sortDirection: state.foodSortDirection,
+      page: state.foodsPage,
+      rows: data?.foodFrequency || [],
+      recentMeals: data?.recentMeals || [],
+      generatedAt: data?.generatedAt || "",
+    }),
+    dailySteps: serializeSignature(data?.stepsByDay || []),
+    profileQuickStats: serializeSignature({
+      windowDays: state.nutritionWindowDays,
+      profileSummary: data?.profileSummary || {},
+    }),
+    signals: serializeSignature({
+      windowDays: state.nutritionWindowDays,
+      signals: data?.signals || [],
+    }),
+    nutritionBalance: serializeSignature({
+      windowDays: state.nutritionWindowDays,
+      scope: state.nutritionScope,
+      balance: data?.nutritionBalance || {},
+    }),
+    recentMeals: serializeSignature({
+      windowDays: state.nutritionWindowDays,
+      mealType: state.mealTypeFilter,
+      page: state.mealsPage,
+      meals: data?.recentMeals || [],
+      generatedAt: data?.generatedAt || "",
+    }),
+    referenceSections: serializeSignature(data?.referenceSections || {}),
+    labs: serializeSignature({
+      latestLabDate: data?.latestLabDate || "",
+      latestLabCards: data?.latestLabCards || [],
+    }),
+    digestiveFocus: serializeSignature(data?.digestiveFocus || {}),
+    labHistory: serializeSignature(data?.labHistory || []),
+    weightChart: serializeSignature(data?.weightHistory || []),
+    monthlyBars: serializeSignature(data?.monthlySummaries || []),
+    timeline: serializeSignature(data?.timeline || []),
+    documents: serializeSignature(data?.sourceDocuments || []),
+  };
+}
+
+const SECTION_RENDERERS = {
+  freshness: renderFreshness,
+  foodTable: renderFoodTable,
+  dailySteps: renderDailySteps,
+  profileQuickStats: renderProfileQuickStats,
+  signals: renderSignals,
+  nutritionBalance: renderNutritionBalance,
+  recentMeals: renderRecentMeals,
+  referenceSections: renderReferenceSections,
+  labs: renderLabs,
+  digestiveFocus: renderDigestiveFocus,
+  labHistory: renderLabHistory,
+  weightChart: renderWeightChart,
+  monthlyBars: renderMonthlyBars,
+  timeline: renderTimeline,
+  documents: renderDocuments,
+};
+
+function renderApp(data, { forceAll = false } = {}) {
+  const nextSignatures = buildRenderSignatures(data);
   syncSectionControlsState();
-  renderReferenceSections(data);
-  renderLabs(data);
-  renderDigestiveFocus(data);
-  renderLabHistory(data);
-  renderWeightChart(data);
-  renderMonthlyBars(data);
-  renderTimeline(data);
-  renderDocuments(data);
+  Object.entries(SECTION_RENDERERS).forEach(([key, renderSection]) => {
+    if (!forceAll && state.renderSignatures[key] === nextSignatures[key]) {
+      return;
+    }
+    renderSection(data);
+    state.renderSignatures[key] = nextSignatures[key];
+  });
 }
 
 function setupReveal() {
+  const revealNodes = document.querySelectorAll(".reveal");
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const smallViewport = window.matchMedia("(max-width: 980px)").matches;
+  const coarsePointer = window.matchMedia("(hover: none), (pointer: coarse)").matches;
+  if (prefersReducedMotion || smallViewport || coarsePointer || !("IntersectionObserver" in window)) {
+    document.body.dataset.reveal = "off";
+    revealNodes.forEach((node) => node.classList.add("is-visible"));
+    return;
+  }
+  document.body.dataset.reveal = "on";
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
@@ -1377,7 +1453,7 @@ function setupReveal() {
       }
     });
   }, { threshold: 0.14 });
-  document.querySelectorAll(".reveal").forEach((node) => observer.observe(node));
+  revealNodes.forEach((node) => observer.observe(node));
 }
 
 function setupLiveReload() {
@@ -1402,7 +1478,7 @@ async function refreshDashboard({ force = false } = {}) {
     const nextGeneratedAt = nextDashboard?.generatedAt || "";
     if (force || !state.dashboard || currentGeneratedAt !== nextGeneratedAt) {
       state.dashboard = nextDashboard;
-      renderApp(state.dashboard);
+      renderApp(state.dashboard, { forceAll: force || !currentGeneratedAt });
     }
   } catch (error) {
     if (error instanceof AuthRedirectError) {
@@ -1444,7 +1520,7 @@ function setupFreshnessChecks() {
 async function boot() {
   await waitForAuthBootstrap();
   state.dashboard = await loadDashboard();
-  renderApp(state.dashboard);
+  renderApp(state.dashboard, { forceAll: true });
   markAppHydrated();
   setupSectionControls();
   setupReveal();

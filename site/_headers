@@ -1,7 +1,7 @@
 /*
   X-Robots-Tag: noindex, nofollow, noarchive
   Referrer-Policy: no-referrer
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://identity.netlify.com; connect-src 'self' https://identity.netlify.com https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://identity.netlify.com; frame-src https://identity.netlify.com https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://identity.netlify.com; connect-src 'self' https://identity.netlify.com https:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://identity.netlify.com; frame-src https://identity.netlify.com https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests
   X-Frame-Options: DENY
   Permissions-Policy: accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
 
@@ -25,6 +25,12 @@
 
 /styles.css
   Cache-Control: private, no-store, max-age=0
+
+/fonts.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
 
 /auth.js
   Cache-Control: private, no-store, max-age=0
