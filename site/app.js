@@ -5,6 +5,7 @@ const state = {
   mealTypeFilter: "all",
   mealsPage: 1,
   foodsPage: 1,
+  stepsPage: 1,
   foodSort: "occurrence",
   foodSortDirection: "desc",
   refreshTimer: null,
@@ -15,11 +16,13 @@ const state = {
 const REFRESH_INTERVAL_MS = 60000;
 const MEALS_PER_PAGE = 3;
 const FOODS_PER_PAGE = 10;
+const STEPS_PER_PAGE = 4;
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
   month: "short",
   weekday: "long",
 });
+const NUMBER_FORMATTER = new Intl.NumberFormat("fr-FR");
 const FRESHNESS_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
   year: "numeric",
   month: "2-digit",
@@ -59,7 +62,14 @@ function isUnauthorizedDashboardResponse(response) {
   );
 }
 
-async function loadDashboard() {
+async function recoverProtectedSession() {
+  const ensureProtectedAccess = window.__atlasEnsureProtectedAccess;
+  if (typeof ensureProtectedAccess !== "function") return false;
+  const result = await ensureProtectedAccess({ extended: true });
+  return Boolean(result?.accessReady);
+}
+
+async function loadDashboard({ retryOnUnauthorized = true } = {}) {
   const response = await fetch("./data/dashboard.json", {
     cache: "no-store",
     credentials: "same-origin",
@@ -68,6 +78,9 @@ async function loadDashboard() {
     },
   });
   if (isUnauthorizedDashboardResponse(response)) {
+    if (retryOnUnauthorized && await recoverProtectedSession()) {
+      return loadDashboard({ retryOnUnauthorized: false });
+    }
     throw new AuthRedirectError();
   }
   if (!response.ok) throw new Error(`Failed to load dashboard data: ${response.status}`);
@@ -132,6 +145,12 @@ function formatShortDate(value) {
   return SHORT_DATE_FORMATTER.format(date);
 }
 
+function formatCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value || "");
+  return NUMBER_FORMATTER.format(Math.round(numeric));
+}
+
 function getDashboardReferenceDate(data) {
   const meals = Array.isArray(data?.recentMeals) ? data.recentMeals : [];
   const mealDates = meals
@@ -169,9 +188,10 @@ function filterByWindowMonth(rows, monthKey, days, referenceDate) {
   const endDate = referenceDate instanceof Date ? referenceDate : getDashboardReferenceDate({ generatedAt: referenceDate });
   const cutoff = getWindowDateRange({ generatedAt: endDate.toISOString() }, days).startDate;
   return rows.filter((row) => {
-    const parsed = parseMonthToDate(row?.[monthKey]);
-    if (!parsed) return false;
-    return parsed >= cutoff && parsed <= endDate;
+    const monthStart = parseMonthToDate(row?.[monthKey]);
+    if (!monthStart) return false;
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    return monthEnd >= cutoff && monthStart <= endDate;
   });
 }
 
@@ -331,7 +351,7 @@ function formatScopeCoverage(scope) {
   return `${scope.mealsCount} ${mealsLabel} • ${scope.daysCovered} ${daysLabel}`;
 }
 
-function buildNutritionDonut(shares, totalKcal, scopeLabel) {
+function buildNutritionDonut(shares, displayKcal, displayUnit, scopeLabel) {
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
@@ -360,8 +380,8 @@ function buildNutritionDonut(shares, totalKcal, scopeLabel) {
         ${segments}
       </g>
       <circle cx="80" cy="80" r="42" fill="rgba(255, 252, 244, 0.96)"></circle>
-      <text x="80" y="74" text-anchor="middle" class="nutrition-donut-value">${Math.round(totalKcal || 0)}</text>
-      <text x="80" y="92" text-anchor="middle" class="nutrition-donut-unit">kcal</text>
+      <text x="80" y="74" text-anchor="middle" class="nutrition-donut-value">${Math.round(displayKcal || 0)}</text>
+      <text x="80" y="92" text-anchor="middle" class="nutrition-donut-unit">${escapeHtml(displayUnit || "kcal")}</text>
       <text x="80" y="110" text-anchor="middle" class="nutrition-donut-label">${escapeHtml(scopeLabel)}</text>
     </svg>
   `;
@@ -449,16 +469,19 @@ function renderNutritionBalance(data) {
       if (number === 0) return "";
       return `${Math.round(number)} g`;
     };
+    const displayKcal = parseNumeric(scope.displayKcal) ?? parseNumeric(scope.totalKcal) ?? 0;
+    const displayUnit = String(scope.displayKcalUnit || "kcal");
     const legend = scope.categoryShares.map((entry) => {
       const grams = formatGrams(entry.grams);
       const details = grams ? ` • ${escapeHtml(grams)}` : "";
+      const entryDisplayKcal = parseNumeric(entry.displayKcal) ?? parseNumeric(entry.kcal) ?? 0;
       return `
       <li class="nutrition-legend-item">
         <span class="nutrition-legend-main">
           <span class="nutrition-legend-swatch" style="background:${foodCategoryColor(entry.key)};"></span>
           <span class="nutrition-legend-label">${escapeHtml(entry.icon || "🍽️")} ${escapeHtml(entry.label || entry.key)}</span>
         </span>
-        <span class="nutrition-legend-values">${escapeHtml(String(entry.sharePct))}% • ${escapeHtml(String(Math.round(entry.kcal)))} kcal${details}</span>
+        <span class="nutrition-legend-values">${escapeHtml(String(entry.sharePct))}% • ${escapeHtml(String(Math.round(entryDisplayKcal)))} ${escapeHtml(displayUnit)}${details}</span>
       </li>
     `;}).join("");
 
@@ -475,7 +498,7 @@ function renderNutritionBalance(data) {
 
         <div class="nutrition-balance-meta">
           <span>${escapeHtml(formatScopeCoverage(scope))}</span>
-          <span>${escapeHtml(Math.round(scope.totalKcal))} kcal estimées</span>
+          <span>${escapeHtml(Math.round(displayKcal))} ${escapeHtml(displayUnit)} estimées</span>
         </div>
 
         ${scope.insufficientData ? `<div class="nutrition-balance-warning">${escapeHtml(scope.insufficientDataMessage || "Lecture encore fragile.")}</div>` : ""}
@@ -483,7 +506,7 @@ function renderNutritionBalance(data) {
         <div class="nutrition-balance-grid">
           <div class="nutrition-balance-viz">
             <div class="nutrition-donut-wrap">
-              ${buildNutritionDonut(scope.categoryShares, scope.totalKcal, scope.label)}
+              ${buildNutritionDonut(scope.categoryShares, displayKcal, displayUnit, scope.label)}
             </div>
             <ul class="nutrition-legend-list">
               ${legend}
@@ -548,7 +571,7 @@ function buildMealCardsForDateGroup(meals, data) {
     const hasEstimatedEnergy = parseNumeric(assessment.estimatedEnergyKcal) !== null;
     const hasScore = assessment.qualityScore !== null && assessment.qualityScore !== undefined && assessment.qualityScore !== "";
     const badgeTone = hasScore ? mealScoreTone(assessment.qualityScore) : (estimatedCount ? "estimated" : "exact");
-    const badgeLabel = hasEstimatedEnergy ? "Estimation kcal" : (estimatedCount ? `${estimatedCount} estimés` : "Structure");
+    const badgeLabel = hasScore ? `Score ${assessment.qualityScore}/100` : (estimatedCount ? `${estimatedCount} estimés` : "Structure");
     const density = estimateMealDensityStats(meal);
     article.innerHTML = `
       <div class="meal-card-head">
@@ -783,9 +806,14 @@ function sortFoodRows(rows, sortMode, direction = "desc") {
 }
 
 function buildFoodWindowRows(data) {
-  const windowDays = Number(state.nutritionWindowDays) || 30;
-  const range = getWindowDateRange(data, windowDays);
-  return filterByWindowMonth(data.foodFrequency || [], "month", windowDays, range.endDate);
+  const windowDays = String(Number(state.nutritionWindowDays) || 30);
+  const exactRows = data?.foodFrequencyWindows?.[windowDays];
+  if (Array.isArray(exactRows)) {
+    return exactRows;
+  }
+  const numericWindowDays = Number(windowDays) || 30;
+  const range = getWindowDateRange(data, numericWindowDays);
+  return filterByWindowMonth(data.foodFrequency || [], "month", numericWindowDays, range.endDate);
 }
 
 function deltaTone(value) {
@@ -1204,22 +1232,96 @@ function renderDailySteps(data) {
     return;
   }
 
-  target.innerHTML = rows
+  const totalPages = Math.max(1, Math.ceil(rows.length / STEPS_PER_PAGE));
+  state.stepsPage = Math.min(Math.max(state.stepsPage, 1), totalPages);
+  const startIndex = (state.stepsPage - 1) * STEPS_PER_PAGE;
+  const visibleRows = rows.slice(startIndex, startIndex + STEPS_PER_PAGE);
+  const maxSteps = Math.max(...rows.map((row) => Number(row.steps) || 0), 1);
+  const averageSteps = rows.reduce((sum, row) => sum + (Number(row.steps) || 0), 0) / rows.length;
+  const latestRow = rows[0];
+  const sparkline = buildSparkline(
+    [...rows].reverse().map((row) => ({ date: row.date, value: row.steps })),
+  );
+
+  const listMarkup = visibleRows
     .map((row) => {
       const dateLabel = formatShortDate(row.date);
-      const steps = Number.isInteger(row.steps) ? `${row.steps} pas` : `${row.steps} pas`;
+      const steps = `${formatCount(row.steps)} pas`;
       const source = row.source === "seed" ? "initialisation" : row.source || "source inconnue";
+      const barWidth = Math.max(10, Math.round(((Number(row.steps) || 0) / maxSteps) * 100));
       return `
         <article class="steps-entry">
           <div class="steps-entry-main">
             <span class="steps-entry-date">${escapeHtml(dateLabel)}</span>
             <span class="steps-entry-source">${escapeHtml(source)}</span>
+            <span class="steps-entry-trail"><span class="steps-entry-bar" style="width:${escapeHtml(String(barWidth))}%"></span></span>
           </div>
           <span class="steps-entry-count">${escapeHtml(steps)}</span>
         </article>
       `;
     })
     .join("");
+
+  const paginationMarkup = totalPages > 1
+    ? `
+      <div class="section-pagination">
+        <div class="section-pagination-summary">
+          Jours ${escapeHtml(String(startIndex + 1))} à ${escapeHtml(String(startIndex + visibleRows.length))} sur ${escapeHtml(String(rows.length))}
+        </div>
+        <div class="section-pagination-actions">
+          <button class="section-pagination-button" type="button" data-action="prev" ${state.stepsPage === 1 ? "disabled" : ""}>
+            Précédent
+          </button>
+          <span class="section-pagination-page">Page ${escapeHtml(String(state.stepsPage))}/${escapeHtml(String(totalPages))}</span>
+          <button class="section-pagination-button" type="button" data-action="next" ${state.stepsPage === totalPages ? "disabled" : ""}>
+            Suivant
+          </button>
+        </div>
+      </div>
+    `
+    : "";
+
+  target.innerHTML = `
+    <div class="steps-panel">
+      <div class="steps-overview">
+        <div class="steps-summary-grid">
+          <article class="steps-summary-card">
+            <span class="steps-summary-label">Dernier point</span>
+            <strong>${escapeHtml(`${formatCount(latestRow.steps)} pas`)}</strong>
+            <span>${escapeHtml(formatShortDate(latestRow.date))}</span>
+          </article>
+          <article class="steps-summary-card">
+            <span class="steps-summary-label">Moyenne récente</span>
+            <strong>${escapeHtml(`${formatCount(averageSteps)} pas`)}</strong>
+            <span>${escapeHtml(`${formatCount(rows.length)} jour(s)`)}</span>
+          </article>
+        </div>
+        <div class="steps-chart-card">
+          <div class="steps-chart-head">
+            <strong>Courbe récente</strong>
+            <span>${escapeHtml(`${formatCount(rows.length)} points`)}</span>
+          </div>
+          ${sparkline}
+        </div>
+      </div>
+      <div class="steps-list">
+        ${listMarkup}
+      </div>
+      ${paginationMarkup}
+    </div>
+  `;
+
+  target.querySelectorAll(".section-pagination-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.action === "prev" && state.stepsPage > 1) {
+        state.stepsPage -= 1;
+      }
+      if (button.dataset.action === "next" && state.stepsPage < totalPages) {
+        state.stepsPage += 1;
+      }
+      renderDailySteps(data);
+    });
+  });
 }
 
 function renderProfileQuickStats(data) {
@@ -1288,10 +1390,12 @@ function setupSectionControls() {
       state.nutritionWindowDays = String(windowDays);
       state.mealsPage = 1;
       state.foodsPage = 1;
+      state.stepsPage = 1;
       syncSectionControlsState();
       if (!state.dashboard) return;
       renderFoodTable(state.dashboard);
       renderRecentMeals(state.dashboard);
+      renderDailySteps(state.dashboard);
       renderSignals(state.dashboard);
       renderNutritionBalance(state.dashboard);
       renderProfileQuickStats(state.dashboard);
@@ -1366,10 +1470,14 @@ function buildRenderSignatures(data) {
       sortDirection: state.foodSortDirection,
       page: state.foodsPage,
       rows: data?.foodFrequency || [],
+      windows: data?.foodFrequencyWindows || {},
       recentMeals: data?.recentMeals || [],
       generatedAt: data?.generatedAt || "",
     }),
-    dailySteps: serializeSignature(data?.stepsByDay || []),
+    dailySteps: serializeSignature({
+      page: state.stepsPage,
+      rows: data?.stepsByDay || [],
+    }),
     profileQuickStats: serializeSignature({
       windowDays: state.nutritionWindowDays,
       profileSummary: data?.profileSummary || {},

@@ -78,6 +78,46 @@
     unit: "g"
     portion_text: "1 petite portion"
 
+- key: "leek_cooked"
+  label: "Poireaux"
+  category: "vegetable"
+  icon: "🥬"
+  default_unit: "g"
+  default_portion:
+    quantity: 80
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "mushroom_cooked"
+  label: "Champignons"
+  category: "vegetable"
+  icon: "🍄"
+  default_unit: "g"
+  default_portion:
+    quantity: 70
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "onion_cooked"
+  label: "Oignons"
+  category: "vegetable"
+  icon: "🧅"
+  default_unit: "g"
+  default_portion:
+    quantity: 40
+    unit: "g"
+    portion_text: "1 petite portion"
+
+- key: "soy_cream"
+  label: "Creme soja"
+  category: "fat"
+  icon: "🥣"
+  default_unit: "g"
+  default_portion:
+    quantity: 40
+    unit: "g"
+    portion_text: "1 petite portion"
+
 - key: "fish_generic_cooked"
   label: "Poisson"
   category: "protein"
@@ -90,6 +130,16 @@
 
 - key: "caramel_yogurt"
   label: "Yaourt caramel"
+  category: "dairy"
+  icon: "🍮"
+  default_unit: "g"
+  default_portion:
+    quantity: 125
+    unit: "g"
+    portion_text: "1 pot"
+
+- key: "vanilla_yogurt"
+  label: "Yaourt vanille"
   category: "dairy"
   icon: "🍮"
   default_unit: "g"
@@ -167,6 +217,16 @@
     quantity: 90
     unit: "g"
     portion_text: "6 fraises"
+
+- key: "homemade_fruit_salad"
+  label: "Salade de fruits maison"
+  category: "fruit"
+  icon: "🍓"
+  default_unit: "g"
+  default_portion:
+    quantity: 180
+    unit: "g"
+    portion_text: "1 bol"
 
 - key: "whipped_cream"
   label: "Chantilly"
@@ -352,3 +412,20 @@
     quantity: 90
     unit: "g"
     portion_text: "1 compote"
+
+- key: "asparagus_risotto"
+  label: "Risotto aux asperges"
+  category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 65
+    - category: "vegetable"
+      weight: 20
+    - category: "fat"
+      weight: 15
+  icon: "🍚"
+  default_unit: "g"
+  default_portion:
+    quantity: 300
+    unit: "g"
+    portion_text: "1 assiette moyenne"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import build_site_data
 import json
+import re
 from collections import defaultdict
 from datetime import date
 
@@ -41,6 +42,12 @@ FOOD_FREQUENCY_FIELDS = [
     "distinct_days",
     "total_quantity",
     "portion_text_examples"
+]
+
+STEPS_BY_DAY_FIELDS = [
+    "date",
+    "steps",
+    "source"
 ]
 
 KEY_LAB_TESTS = [
@@ -83,6 +90,8 @@ VALUE_LABELS = {
     "psychology-report": "compte-rendu psychologique",
 }
 
+STEP_COUNT_PATTERN = re.compile(r"(?P<count>\d[\d\s.,]*)\s*(?:pas|steps?)\b", re.IGNORECASE)
+
 
 def read_optional_csv(dataset: str) -> list[dict[str, str]]:
     dataset_dir = NORMALIZED_DIR / dataset
@@ -104,6 +113,45 @@ def to_float(value: str) -> float:
 def pretty_value(value: str | None) -> str:
     raw = str(value or "unknown")
     return VALUE_LABELS.get(raw, raw.replace("_", " "))
+
+
+def parse_steps_text(value: object) -> int | None:
+    if value in ("", None):
+        return None
+
+    if isinstance(value, (int, float)):
+        numeric = int(value)
+        return numeric if numeric >= 0 else None
+
+    text = str(value)
+    match = STEP_COUNT_PATTERN.search(text)
+    if not match:
+        return None
+
+    digits_only = "".join(char for char in match.group("count") if char.isdigit())
+    if not digits_only:
+        return None
+
+    numeric = int(digits_only)
+    return numeric if numeric >= 0 else None
+
+
+def extract_activity_steps(activity: dict) -> tuple[int | None, str]:
+    raw_steps = activity.get("steps")
+    if raw_steps not in ("", None):
+        try:
+            numeric = int(raw_steps)
+        except (TypeError, ValueError):
+            numeric = parse_steps_text(raw_steps)
+        if numeric is not None:
+            return numeric, str(activity.get("notes", "")).strip() or "champ steps structure"
+
+    notes = str(activity.get("notes", "")).strip()
+    parsed_from_notes = parse_steps_text(notes)
+    if parsed_from_notes is not None:
+        return parsed_from_notes, notes
+
+    return None, ""
 
 
 def load_profile() -> dict:
@@ -442,7 +490,12 @@ def build_health_reference(journal_documents: list[dict]) -> None:
 
 
 def main() -> int:
-    for dataset_dir in [DERIVED_DIR / "daily_summary", DERIVED_DIR / "monthly_summary", DERIVED_DIR / "food_frequency"]:
+    for dataset_dir in [
+        DERIVED_DIR / "daily_summary",
+        DERIVED_DIR / "monthly_summary",
+        DERIVED_DIR / "food_frequency",
+        DERIVED_DIR / "steps_by_day",
+    ]:
         dataset_dir.mkdir(parents=True, exist_ok=True)
         for artifact in dataset_dir.glob("*"):
             if artifact.is_file():
@@ -450,12 +503,40 @@ def main() -> int:
 
     day_context: dict[str, dict] = {}
     journal_documents: list[dict] = []
+    steps_rows: list[dict] = []
     for path in iter_day_log_files():
         document = load_yaml(path)
         if not isinstance(document, dict):
             continue
         journal_documents.append(document)
         date_value = document["date"]
+        total_steps = 0
+        step_sources: list[str] = []
+        found_steps = False
+        for activity in document.get("activity", []):
+            if not isinstance(activity, dict):
+                continue
+            steps_value, source_label = extract_activity_steps(activity)
+            if steps_value is None:
+                continue
+            total_steps += steps_value
+            found_steps = True
+            if source_label:
+                step_sources.append(source_label)
+
+        if found_steps:
+            unique_sources: list[str] = []
+            for source_label in step_sources:
+                if source_label not in unique_sources:
+                    unique_sources.append(source_label)
+            steps_rows.append(
+                {
+                    "date": date_value,
+                    "steps": total_steps,
+                    "source": " | ".join(unique_sources)[:250],
+                }
+            )
+
         day_context[date_value] = {
             "date": date_value,
             "month": month_key(date_value),
@@ -564,6 +645,15 @@ def main() -> int:
         sorted_rows = sorted(rows, key=lambda row: (-int(row["occurrence_count"]), row["label"], row["unit"]))
         target = DERIVED_DIR / "food_frequency" / f"{month}.csv"
         write_csv(target, FOOD_FREQUENCY_FIELDS, sorted_rows)
+
+    steps_rows_by_month: dict[str, list[dict]] = defaultdict(list)
+    for row in steps_rows:
+        steps_rows_by_month[month_key(str(row["date"]))].append(row)
+
+    for month, rows in sorted(steps_rows_by_month.items()):
+        sorted_rows = sorted(rows, key=lambda row: row["date"])
+        target = DERIVED_DIR / "steps_by_day" / f"{month}.csv"
+        write_csv(target, STEPS_BY_DAY_FIELDS, sorted_rows)
 
     weight_rows_by_month: dict[str, list[float]] = defaultdict(list)
     resting_hr_rows_by_month: dict[str, list[float]] = defaultdict(list)

@@ -23,4 +23,10 @@ meals:
         quantity_source: "exact"
         preparation: ""
         notes: ""
-
+activity:
+  - type: "walking"
+    start: "18:30"
+    duration_min: 30
+    steps: 3500
+    intensity: "low"
+    notes: ""

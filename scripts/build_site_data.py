@@ -407,6 +407,77 @@ def load_all_meal_items() -> list[dict]:
     return [row for row in rows if row.get("is_duplicate") != "true"]
 
 
+def aggregate_food_frequency_rows(
+    meal_items: list[dict],
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> list[dict]:
+    buckets: dict[tuple[str, str, str], dict] = {}
+
+    for row in meal_items:
+        parsed_date = parse_iso_date(row.get("date"))
+        if not parsed_date:
+            continue
+        if start_date and parsed_date < start_date:
+            continue
+        if end_date and parsed_date > end_date:
+            continue
+
+        food_key = str(row.get("food_key", "")).strip()
+        label = str(row.get("label", "")).strip()
+        unit = str(row.get("unit", "")).strip()
+        bucket_key = (food_key, label, unit)
+
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {
+                "food_key": food_key,
+                "label": label,
+                "unit": unit,
+                "occurrence_count": 0,
+                "distinct_days": set(),
+                "total_quantity": 0.0,
+                "total_energy_kcal": 0.0,
+                "portion_text_examples": set(),
+            }
+
+        bucket = buckets[bucket_key]
+        bucket["occurrence_count"] += 1
+        bucket["distinct_days"].add(parsed_date.isoformat())
+
+        quantity = parse_numeric(row.get("quantity"))
+        if quantity is not None:
+            bucket["total_quantity"] += quantity
+
+        energy_kcal = parse_numeric(row.get("energy_kcal"))
+        if energy_kcal is not None and energy_kcal > 0:
+            bucket["total_energy_kcal"] += energy_kcal
+
+        portion_text = str(row.get("portion_text", "")).strip()
+        if portion_text:
+            bucket["portion_text_examples"].add(portion_text)
+
+    aggregated_rows: list[dict] = []
+    for bucket in buckets.values():
+        aggregated_rows.append(
+            {
+                "food_key": bucket["food_key"],
+                "label": bucket["label"],
+                "unit": bucket["unit"],
+                "occurrence_count": bucket["occurrence_count"],
+                "distinct_days": len(bucket["distinct_days"]),
+                "total_quantity": round(bucket["total_quantity"], 2) if bucket["total_quantity"] else "",
+                "total_energy_kcal": round(bucket["total_energy_kcal"], 1) if bucket["total_energy_kcal"] else "",
+                "portion_text_examples": " | ".join(sorted(bucket["portion_text_examples"]))[:250],
+            }
+        )
+
+    return sorted(
+        aggregated_rows,
+        key=lambda row: (-int(row["occurrence_count"]), str(row.get("label", "")), str(row.get("unit", ""))),
+    )
+
+
 def load_latest_lab_panel() -> tuple[str | None, list[dict]]:
     lab_dir = NORMALIZED_DIR / "lab_results"
     if not lab_dir.exists():
@@ -795,6 +866,7 @@ def category_balance_template(category: str) -> dict:
         "label": translate_food_category(category),
         "icon": FOOD_CATEGORY_ICONS.get(category, "🍽️"),
         "kcal": 0.0,
+        "displayKcal": 0.0,
         "grams": 0.0,
         "averageGramsPerCoveredDay": 0.0,
         "sharePct": 0.0,
@@ -993,6 +1065,11 @@ def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = 
         meal_ids = {row["meal_id"] for row in scope_rows if row["meal_id"]}
         covered_days = {row["date"].isoformat() for row in scope_rows}
         total_kcal = sum(row["energy_kcal"] for row in scope_rows)
+        days_covered = len(covered_days)
+        meals_count = len(meal_ids)
+        value_mode = "per_day" if scope_key == "all" else "per_meal"
+        value_unit = "kcal/j" if value_mode == "per_day" else "kcal/repas"
+        value_divisor = days_covered if value_mode == "per_day" else meals_count
         category_totals = {category: category_balance_template(category) for category in FOOD_CATEGORY_ORDER}
 
         for row in scope_rows:
@@ -1010,10 +1087,10 @@ def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = 
                     bucket["grams"] += row["quantity"] * weight
 
         category_shares: list[dict] = []
-        days_covered = len(covered_days)
         for category in FOOD_CATEGORY_ORDER:
             bucket = category_totals[category]
             bucket["kcal"] = round(bucket["kcal"], 1)
+            bucket["displayKcal"] = round(bucket["kcal"] / value_divisor, 1) if value_divisor else 0.0
             bucket["grams"] = round(bucket["grams"], 1)
             bucket["averageGramsPerCoveredDay"] = round(bucket["grams"] / days_covered, 1) if days_covered else 0.0
             bucket["sharePct"] = round((bucket["kcal"] / total_kcal) * 100, 1) if total_kcal else 0.0
@@ -1024,17 +1101,22 @@ def build_nutrition_balance(food_reference: dict[str, dict], window_days: int = 
                         "label": bucket["label"],
                         "icon": bucket["icon"],
                         "kcal": bucket["kcal"],
+                        "displayKcal": bucket["displayKcal"],
                         "grams": bucket["grams"],
                         "sharePct": bucket["sharePct"],
                     }
                 )
 
-        insufficient_data = len(meal_ids) < 5 or days_covered < 3 or total_kcal <= 0
+        display_kcal = round(total_kcal / value_divisor, 1) if value_divisor else 0.0
+        insufficient_data = meals_count < 5 or days_covered < 3 or total_kcal <= 0
         scope = {
             "key": scope_key,
             "label": config["label"],
             "totalKcal": round(total_kcal, 1),
-            "mealsCount": len(meal_ids),
+            "displayKcal": display_kcal,
+            "displayKcalUnit": value_unit,
+            "displayKcalMode": value_mode,
+            "mealsCount": meals_count,
             "daysCovered": days_covered,
             "categoryShares": category_shares,
             "categoryTotals": category_totals,
@@ -1097,6 +1179,75 @@ def normalize_food_reference_unit_text(text: str) -> str:
         flags=re.IGNORECASE,
     )
     return normalized
+
+
+def decorate_food_frequency_row(row: dict, food_reference: dict[str, dict]) -> dict:
+    food_key = str(row.get("food_key", "")).strip()
+    category = resolve_food_category(
+        food_reference,
+        food_key,
+        row.get("label", ""),
+    )
+    category_keys, category_labels = normalize_food_category_labels(
+        food_reference,
+        food_key,
+        row.get("label", ""),
+    )
+    row["icon"] = resolve_food_icon(
+        food_reference,
+        food_key,
+        row.get("label", ""),
+    )
+    row["category_key"] = category
+    row["category_label"] = translate_food_category(category)
+    row["category_keys"] = category_keys
+    row["category_labels"] = category_labels
+    row["categoryKeys"] = category_keys
+    row["categoryLabels"] = category_labels
+    row["categoryAllocations"] = build_food_category_allocations(
+        food_reference,
+        food_key,
+        row.get("label", ""),
+    )
+    row["label"] = normalize_display_text(row.get("label", ""))
+    row["portion_text_examples"] = normalize_food_reference_unit_text(
+        normalize_display_text(row.get("portion_text_examples", ""))
+    )
+    row["unit"] = format_unit_label(
+        str(row.get("unit", "")),
+        parse_numeric(row.get("total_quantity")),
+    )
+    total_energy_kcal = parse_numeric(row.get("total_energy_kcal"))
+    row["total_energy_kcal"] = str(round(total_energy_kcal, 1)) if total_energy_kcal else ""
+    return row
+
+
+def build_food_frequency_windows(
+    food_reference: dict[str, dict],
+    meal_items: list[dict],
+    *,
+    window_days_list: list[int] | tuple[int, ...] = (7, 30, 90),
+) -> dict[str, list[dict]]:
+    meal_dates = [
+        parsed
+        for parsed in (parse_iso_date(row.get("date")) for row in meal_items)
+        if parsed
+    ]
+    end_date = max(meal_dates) if meal_dates else datetime.now(ZoneInfo("Europe/Paris")).date()
+
+    windows: dict[str, list[dict]] = {}
+    for window_days in window_days_list:
+        start_date = end_date - timedelta(days=max(int(window_days), 1) - 1)
+        aggregated_rows = aggregate_food_frequency_rows(
+            meal_items,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        windows[str(window_days)] = [
+            decorate_food_frequency_row(dict(row), food_reference)
+            for row in aggregated_rows
+        ]
+    return windows
 
 
 def meal_item_sort_key(row: dict) -> tuple[float, int]:
@@ -1347,44 +1498,18 @@ def build_dashboard_site_data() -> dict:
             continue
         energy_by_month_food_key[(month, food_key)] = energy_by_month_food_key.get((month, food_key), 0.0) + energy
 
-    top_food_frequency = food_frequency[:]
-    for row in top_food_frequency:
+    top_food_frequency: list[dict] = []
+    for source_row in food_frequency:
+        row = dict(source_row)
         month = str(row.get("month", "")).strip()
         food_key = str(row.get("food_key", "")).strip()
-        category = resolve_food_category(
-            food_reference,
-            food_key,
-            row.get("label", ""),
-        )
-        category_keys, category_labels = normalize_food_category_labels(
-            food_reference,
-            food_key,
-            row.get("label", ""),
-        )
-        total_energy_kcal = energy_by_month_food_key.get((month, food_key), 0.0)
-        row["icon"] = resolve_food_icon(
-            food_reference,
-            food_key,
-            row.get("label", ""),
-        )
-        row["category_key"] = category
-        row["category_label"] = translate_food_category(category)
-        row["category_keys"] = category_keys
-        row["category_labels"] = category_labels
-        row["categoryKeys"] = category_keys
-        row["categoryLabels"] = category_labels
-        row["categoryAllocations"] = build_food_category_allocations(
-            food_reference,
-            food_key,
-            row.get("label", ""),
-        )
-        row["label"] = normalize_display_text(row.get("label", ""))
-        row["portion_text_examples"] = normalize_food_reference_unit_text(normalize_display_text(row.get("portion_text_examples", "")))
-        row["unit"] = format_unit_label(
-            str(row.get("unit", "")),
-            parse_numeric(row.get("total_quantity")),
-        )
-        row["total_energy_kcal"] = str(round(total_energy_kcal, 1))
+        row["total_energy_kcal"] = energy_by_month_food_key.get((month, food_key), 0.0)
+        top_food_frequency.append(decorate_food_frequency_row(row, food_reference))
+
+    food_frequency_windows = build_food_frequency_windows(
+        food_reference,
+        meal_items,
+    )
 
     dashboard = {
         "generatedAt": datetime.now(ZoneInfo("Europe/Paris")).isoformat(timespec="seconds"),
@@ -1413,6 +1538,7 @@ def build_dashboard_site_data() -> dict:
         },
         "digestiveFocus": build_digestive_focus(profile, timeline, all_lab_rows),
         "foodFrequency": top_food_frequency,
+        "foodFrequencyWindows": food_frequency_windows,
         "sourceDocuments": build_source_documents(),
     }
 

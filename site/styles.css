@@ -534,6 +534,60 @@ body[data-page="app"] .documents { min-height: 320px; }
   gap: 10px;
 }
 
+.steps-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.steps-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+  gap: 14px;
+}
+
+.steps-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.steps-summary-card,
+.steps-chart-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(28, 36, 31, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.steps-summary-card {
+  display: grid;
+  gap: 6px;
+}
+
+.steps-summary-card strong {
+  font-size: 1.2rem;
+  color: var(--anchor);
+}
+
+.steps-summary-label,
+.steps-chart-head span {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.steps-chart-card {
+  display: grid;
+  gap: 10px;
+}
+
+.steps-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .steps-entry {
   display: flex;
   align-items: center;
@@ -549,6 +603,21 @@ body[data-page="app"] .documents { min-height: 320px; }
   min-width: 0;
   display: grid;
   gap: 4px;
+}
+
+.steps-entry-trail {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(35, 75, 68, 0.08);
+}
+
+.steps-entry-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(109, 143, 58, 0.88), rgba(35, 75, 68, 0.92));
 }
 
 .steps-entry-date {
@@ -1940,6 +2009,9 @@ body[data-page="capture"] .reveal {
   .hero, .two-column, .steps-section, .focus-grid, .stage-grid { grid-template-columns: 1fr; }
   .hero { min-height: auto; }
   .section-head h2 { max-width: none; }
+  .steps-overview {
+    grid-template-columns: 1fr;
+  }
   .nutrition-balance-head,
   .nutrition-balance-grid {
     grid-template-columns: 1fr;

@@ -94,6 +94,19 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
 7. Apres ajout d un repas, calculer systematiquement une estimation de kcal du repas, un score heuristique sur 100, et 1 a 3 recommandations d amelioration possibles.
 8. Apres ajout d un repas, regenerer les vues pour garder des tendances a jour.
 
+## Procedure specifique pour les pas donnes en conversation
+
+1. Quand l utilisateur donne une information sur la marche, une sortie, un tapis de marche ou l activite quotidienne, toujours enregistrer au final un seul nombre de `steps` pour la date concernee.
+2. Si l utilisateur donne un nombre de pas explicite, utiliser ce nombre tel quel.
+3. Si l utilisateur donne seulement une duree ou un contexte, convertir en pas estimes et garder le caractere estime dans `notes`.
+4. Heuristique par defaut pour la conversion:
+   - marche normale ou tapis: environ `100 pas/min`
+   - marche legere ou "un petit peu": environ `80 a 90 pas/min`, puis arrondir
+   - journee "je ne suis pas sorti" ou activite domestique faible: supposer un faible niveau de deplacement domestique et choisir une estimation ronde prudente plutot que `0`
+5. Toujours conserver dans `notes` la formulation source de l utilisateur, la date de la precision si elle est retrospective, et le fait qu il s agit d une estimation si les pas n etaient pas donnes explicitement.
+6. En cas de contradiction entre deux declarations utilisateur sur une meme journee, conserver l historique dans `notes` au lieu d ecraser silencieusement.
+7. La vue web doit privilegier l affichage des `steps` journaliers, meme si la source conversationnelle etait initialement exprimee en minutes ou en contexte de sortie.
+
 ## Evaluation derivee de chaque repas
 
 - Chaque nouveau repas renseigne par l utilisateur doit declencher un calcul derive, meme si les quantites sont partiellement estimees.

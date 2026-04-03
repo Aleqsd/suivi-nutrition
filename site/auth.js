@@ -7,6 +7,7 @@ const PROTECTED_PAGES = new Set(["app", "capture"]);
 const authReadyState = createDeferred();
 const SESSION_RESTORE_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
 const PROTECTED_ACCESS_RETRY_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
+const SESSION_RECOVERY_DELAYS_MS = [0, 500, 1500, 3000, 5000, 8000, 12000];
 window.__atlasAuthReady = authReadyState.promise;
 
 const AUTH_STATUS_MESSAGES = {
@@ -119,8 +120,8 @@ async function probeProtectedDataAccess() {
   };
 }
 
-async function restoreIdentityUser(user = null) {
-  for (const delayMs of SESSION_RESTORE_DELAYS_MS) {
+async function restoreIdentityUser(user = null, delays = SESSION_RESTORE_DELAYS_MS) {
+  for (const delayMs of delays) {
     if (delayMs) await wait(delayMs);
 
     const activeUser = getIdentityUser(user);
@@ -141,8 +142,14 @@ async function restoreIdentityUser(user = null) {
   return null;
 }
 
-async function waitForProtectedAppAccess(user) {
-  const activeUser = await restoreIdentityUser(user);
+async function waitForProtectedAppAccess(
+  user,
+  {
+    restoreDelays = SESSION_RESTORE_DELAYS_MS,
+    accessDelays = PROTECTED_ACCESS_RETRY_DELAYS_MS,
+  } = {},
+) {
+  const activeUser = await restoreIdentityUser(user, restoreDelays);
   if (!activeUser) {
     return {
       accessReady: false,
@@ -150,7 +157,7 @@ async function waitForProtectedAppAccess(user) {
     };
   }
 
-  for (const delayMs of PROTECTED_ACCESS_RETRY_DELAYS_MS) {
+  for (const delayMs of accessDelays) {
     if (delayMs) await wait(delayMs);
 
     try {
@@ -170,6 +177,23 @@ async function waitForProtectedAppAccess(user) {
   return {
     accessReady: false,
     user: getIdentityUser(activeUser) || activeUser,
+  };
+}
+
+async function ensureProtectedAppAccess(
+  user = null,
+  {
+    extended = false,
+  } = {},
+) {
+  const delays = extended ? SESSION_RECOVERY_DELAYS_MS : PROTECTED_ACCESS_RETRY_DELAYS_MS;
+  const result = await waitForProtectedAppAccess(user, {
+    restoreDelays: delays,
+    accessDelays: delays,
+  });
+  return {
+    ...result,
+    reason: result.user ? "session_pending" : "expired",
   };
 }
 
@@ -194,7 +218,7 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
     "info",
   );
 
-  const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
+  const { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user);
   if (accessReady) {
     resolveAuthReady({ authorized: true, user: resolvedUser || user });
     redirectToApp();
@@ -209,7 +233,10 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
 async function bootstrapAppAccess(user) {
   setAppAuthState("pending");
 
-  const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
+  let { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user);
+  if (!accessReady && resolvedUser) {
+    ({ accessReady, user: resolvedUser } = await ensureProtectedAppAccess(resolvedUser, { extended: true }));
+  }
   if (!resolvedUser) {
     redirectToLogin("expired");
     return false;
@@ -224,6 +251,10 @@ async function bootstrapAppAccess(user) {
   resolveAuthReady({ authorized: true, user: resolvedUser });
   return true;
 }
+
+window.__atlasEnsureProtectedAccess = async function atlasEnsureProtectedAccess(options = {}) {
+  return ensureProtectedAppAccess(options.user || null, options);
+};
 
 function openGoogleLoginDirect() {
   if (!window.netlifyIdentity) {
