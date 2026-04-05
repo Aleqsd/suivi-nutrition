@@ -47,7 +47,10 @@ FOOD_FREQUENCY_FIELDS = [
 STEPS_BY_DAY_FIELDS = [
     "date",
     "steps",
-    "source"
+    "source",
+    "activity_kind",
+    "activity_label",
+    "icon",
 ]
 
 KEY_LAB_TESTS = [
@@ -91,6 +94,28 @@ VALUE_LABELS = {
 }
 
 STEP_COUNT_PATTERN = re.compile(r"(?P<count>\d[\d\s.,]*)\s*(?:pas|steps?)\b", re.IGNORECASE)
+HOME_KEYWORDS = ("pas sorti", "reste chez", "resté chez", "teletravail", "télétravail", "domestique", "maison", "chez lui", "chez moi")
+TREADMILL_KEYWORDS = ("tapis", "treadmill")
+OUTSIDE_KEYWORDS = ("courses", "course", "sorti", "sortie", "dehors", "marche", "promenade", "shopping")
+SPORT_ACTIVITY_TYPES = {"running", "jogging", "sport", "workout", "training", "hiking", "fitness"}
+STEP_ACTIVITY_META = {
+    "home": {
+        "label": "Maison",
+        "icon": "🏠",
+    },
+    "home_treadmill": {
+        "label": "Maison + tapis",
+        "icon": "👟",
+    },
+    "outside": {
+        "label": "Sortie",
+        "icon": "🚶",
+    },
+    "sport_high": {
+        "label": "Sport / forte activite",
+        "icon": "🏃",
+    },
+}
 
 
 def read_optional_csv(dataset: str) -> list[dict[str, str]]:
@@ -152,6 +177,36 @@ def extract_activity_steps(activity: dict) -> tuple[int | None, str]:
         return parsed_from_notes, notes
 
     return None, ""
+
+
+def detect_steps_activity_kind(activities: list[dict], total_steps: int) -> str:
+    activity_types = [str(activity.get("type", "")).strip().lower() for activity in activities if isinstance(activity, dict)]
+    notes_text = " ".join(str(activity.get("notes", "")).strip().lower() for activity in activities if isinstance(activity, dict))
+    has_home_correction = "daily_movement" in activity_types and any(keyword in notes_text for keyword in HOME_KEYWORDS)
+
+    if total_steps >= 12000 or any(activity_type in SPORT_ACTIVITY_TYPES for activity_type in activity_types):
+        return "sport_high"
+    if any("treadmill" in activity_type for activity_type in activity_types) or any(keyword in notes_text for keyword in TREADMILL_KEYWORDS):
+        return "home_treadmill"
+    if has_home_correction:
+        return "home"
+    if any(keyword in notes_text for keyword in OUTSIDE_KEYWORDS):
+        return "outside"
+    if any(keyword in notes_text for keyword in HOME_KEYWORDS) or "daily_movement" in activity_types:
+        return "home"
+    if "walking" in activity_types:
+        return "outside" if total_steps >= 1500 else "home"
+    return "home"
+
+
+def build_steps_activity_meta(activities: list[dict], total_steps: int) -> dict[str, str]:
+    activity_kind = detect_steps_activity_kind(activities, total_steps)
+    meta = STEP_ACTIVITY_META.get(activity_kind, STEP_ACTIVITY_META["home"])
+    return {
+        "activity_kind": activity_kind,
+        "activity_label": meta["label"],
+        "icon": meta["icon"],
+    }
 
 
 def load_profile() -> dict:
@@ -510,10 +565,11 @@ def main() -> int:
             continue
         journal_documents.append(document)
         date_value = document["date"]
+        activities = document.get("activity", [])
         total_steps = 0
         step_sources: list[str] = []
         found_steps = False
-        for activity in document.get("activity", []):
+        for activity in activities:
             if not isinstance(activity, dict):
                 continue
             steps_value, source_label = extract_activity_steps(activity)
@@ -529,11 +585,18 @@ def main() -> int:
             for source_label in step_sources:
                 if source_label not in unique_sources:
                     unique_sources.append(source_label)
+            activity_meta = build_steps_activity_meta(
+                [activity for activity in activities if isinstance(activity, dict)],
+                total_steps,
+            )
             steps_rows.append(
                 {
                     "date": date_value,
                     "steps": total_steps,
                     "source": " | ".join(unique_sources)[:250],
+                    "activity_kind": activity_meta["activity_kind"],
+                    "activity_label": activity_meta["activity_label"],
+                    "icon": activity_meta["icon"],
                 }
             )
 

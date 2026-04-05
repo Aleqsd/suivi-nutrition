@@ -1218,6 +1218,8 @@ function renderDailySteps(data) {
       date: String(row?.date || ""),
       steps: parseNumeric(row?.steps),
       source: String(row?.source || "").trim(),
+      icon: String(row?.icon || "").trim() || "👣",
+      activityLabel: String(row?.activityLabel || "").trim() || "Activité",
     }))
     .filter((row) => row.date && row.steps !== null)
     .sort((a, b) => {
@@ -1252,7 +1254,10 @@ function renderDailySteps(data) {
       return `
         <article class="steps-entry">
           <div class="steps-entry-main">
-            <span class="steps-entry-date">${escapeHtml(dateLabel)}</span>
+            <div class="steps-entry-head">
+              <span class="steps-entry-date"><span class="steps-entry-icon" aria-hidden="true">${escapeHtml(row.icon)}</span>${escapeHtml(dateLabel)}</span>
+              <span class="steps-entry-badge">${escapeHtml(row.activityLabel)}</span>
+            </div>
             <span class="steps-entry-source">${escapeHtml(source)}</span>
             <span class="steps-entry-trail"><span class="steps-entry-bar" style="width:${escapeHtml(String(barWidth))}%"></span></span>
           </div>

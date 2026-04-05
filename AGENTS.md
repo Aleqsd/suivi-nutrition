@@ -66,6 +66,8 @@ Le code du depot est versionne, mais les donnees personnelles reelles restent ho
 6. Verifier que `data/profile/health-reference.md` a bien ete regenere.
 7. Verifier que `site/app/data/dashboard.json` a bien ete regenere si le dashboard web est utilise.
 
+8. Lancer le deploiement manuel de l'etat courant avec `scripts/deploy_to_ovh.ps1 -Mode fast` (ou `-Mode standard` si necessaire) à chaque fois que de nouvelles donnees sont enregistrees.
+
 ## Quand mettre a jour le document de reference
 
 Le document `data/profile/health-reference.md` doit etre considere comme la fiche de synthese principale.
@@ -100,12 +102,19 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
 2. Si l utilisateur donne un nombre de pas explicite, utiliser ce nombre tel quel.
 3. Si l utilisateur donne seulement une duree ou un contexte, convertir en pas estimes et garder le caractere estime dans `notes`.
 4. Heuristique par defaut pour la conversion:
+   - journee de base a domicile ou en teletravail, sans sortie particuliere: `1000 pas`
    - marche normale ou tapis: environ `100 pas/min`
    - marche legere ou "un petit peu": environ `80 a 90 pas/min`, puis arrondir
-   - journee "je ne suis pas sorti" ou activite domestique faible: supposer un faible niveau de deplacement domestique et choisir une estimation ronde prudente plutot que `0`
+   - journee "je ne suis pas sorti" ou activite domestique faible: utiliser par defaut la base `1000 pas`
+   - si l utilisateur signale une sortie, des courses, une marche ou du tapis, ajouter ces pas estimes au socle quotidien de `1000 pas`, sauf si l utilisateur donne deja un total journalier explicite
 5. Toujours conserver dans `notes` la formulation source de l utilisateur, la date de la precision si elle est retrospective, et le fait qu il s agit d une estimation si les pas n etaient pas donnes explicitement.
 6. En cas de contradiction entre deux declarations utilisateur sur une meme journee, conserver l historique dans `notes` au lieu d ecraser silencieusement.
 7. La vue web doit privilegier l affichage des `steps` journaliers, meme si la source conversationnelle etait initialement exprimee en minutes ou en contexte de sortie.
+8. La vue web des pas doit afficher pour chaque jour une icone d activite stable, derivee du contexte principal du jour. Mapping par defaut:
+   - `🏠` pour une journee surtout a domicile
+   - `👟` pour domicile avec tapis de marche
+   - `🚶` pour une sortie ou de la marche dehors
+   - `🏃` pour sport ou tres forte activite journaliere
 
 ## Evaluation derivee de chaque repas
 
@@ -252,3 +261,5 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
 - Citer les dates exactes des mesures et bilans utilises.
 - Signaler clairement les angles morts: donnees manquantes, informations anciennes, contradiction entre sources, ou mesures non comparables.
 - Ne pas presenter un conseil medical comme un diagnostic.
+
+- Quand de nouvelles donnees sont saisies (repas, pas, mesure, symptome, bilan), executer ensuite le deploiement de l'etat courant via `scripts/deploy_to_ovh.ps1`, puis pousser les changements de code/versionnes vers GitHub si applicable.

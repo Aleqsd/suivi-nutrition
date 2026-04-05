@@ -362,6 +362,9 @@ def build_steps_by_day() -> list[dict]:
                     "date": str(parsed),
                     "steps": steps_value,
                     "source": normalize_display_text(row.get("source", "")),
+                    "activityKind": str(row.get("activity_kind", "")).strip(),
+                    "activityLabel": normalize_display_text(row.get("activity_label", "")),
+                    "icon": normalize_display_text(row.get("icon", "")) or "👣",
                 }
 
     if rows:
@@ -373,6 +376,9 @@ def build_steps_by_day() -> list[dict]:
             "date": str(reference_date - timedelta(days=1)),
             "steps": 500,
             "source": "seed",
+            "activityKind": "home",
+            "activityLabel": "Maison",
+            "icon": "🏠",
         }
     ]
 

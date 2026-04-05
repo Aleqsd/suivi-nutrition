@@ -37,6 +37,34 @@
       </header>
 
       <main>
+        <section class="signal-strip reveal" aria-labelledby="signal-title">
+          <div class="section-head compact">
+            <p class="eyebrow">Signaux</p>
+            <h2 id="signal-title" class="title-with-icon"><span class="title-icon" aria-hidden="true">✦</span><span>Ce qui ressort en ce moment</span></h2>
+          </div>
+          <div class="section-toolbar">
+            <div class="toolbar-group" data-control="window">
+              <span class="toolbar-label">Période</span>
+              <div class="toolbar-buttons">
+                <button class="toolbar-button" type="button" data-time-window="7">7j</button>
+                <button class="toolbar-button is-active" type="button" data-time-window="30">30j</button>
+                <button class="toolbar-button" type="button" data-time-window="90">90j</button>
+              </div>
+            </div>
+          </div>
+          <div class="signal-list" id="signal-list"></div>
+          <div id="nutrition-balance"></div>
+        </section>
+
+        <section class="steps-section reveal">
+          <div class="section-head">
+            <p class="eyebrow">Activité</p>
+            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🚶</span><span>Pas quotidiens</span></h2>
+            <p>Historique rapide de l'activité pédestre quotidienne.</p>
+          </div>
+          <div id="steps-by-day"></div>
+        </section>
+
         <section class="diet-layout reveal">
           <div class="section-head">
             <p class="eyebrow">Nutrition</p>
@@ -116,34 +144,6 @@
           </div>
           <div class="meal-card-grid" id="recent-meals"></div>
           <div class="meal-pagination" id="recent-meals-pagination"></div>
-        </section>
-
-        <section class="signal-strip reveal" aria-labelledby="signal-title">
-          <div class="section-head compact">
-            <p class="eyebrow">Signaux</p>
-            <h2 id="signal-title" class="title-with-icon"><span class="title-icon" aria-hidden="true">✦</span><span>Ce qui ressort en ce moment</span></h2>
-          </div>
-          <div class="section-toolbar">
-            <div class="toolbar-group" data-control="window">
-              <span class="toolbar-label">Période</span>
-              <div class="toolbar-buttons">
-                <button class="toolbar-button" type="button" data-time-window="7">7j</button>
-                <button class="toolbar-button is-active" type="button" data-time-window="30">30j</button>
-                <button class="toolbar-button" type="button" data-time-window="90">90j</button>
-              </div>
-            </div>
-          </div>
-          <div class="signal-list" id="signal-list"></div>
-          <div id="nutrition-balance"></div>
-        </section>
-
-        <section class="steps-section reveal">
-          <div class="section-head">
-            <p class="eyebrow">Activité</p>
-            <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true">🚶</span><span>Pas quotidiens</span></h2>
-            <p>Historique rapide de l'activité pédestre quotidienne.</p>
-          </div>
-          <div id="steps-by-day"></div>
         </section>
 
         <section class="two-column reveal">

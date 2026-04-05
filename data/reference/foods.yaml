@@ -403,6 +403,23 @@
     unit: "pièce"
     portion_text: "1 pièce"
 
+- key: "pokawa_chirashi_salmon_avocado"
+  label: "Chirashi saumon avocat Pokawa"
+  category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 45
+    - category: "fat"
+      weight: 30
+    - category: "protein"
+      weight: 25
+  icon: "🍱"
+  default_unit: "bowl"
+  default_portion:
+    quantity: 1
+    unit: "bowl"
+    portion_text: "1 taille medium"
+
 - key: "apple_compote"
   label: "Compote"
   category: "fruit"

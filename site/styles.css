@@ -589,9 +589,9 @@ body[data-page="app"] .documents { min-height: 320px; }
 }
 
 .steps-entry {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(88px, 112px);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
   border-radius: 16px;
@@ -603,6 +603,21 @@ body[data-page="app"] .documents { min-height: 320px; }
   min-width: 0;
   display: grid;
   gap: 4px;
+}
+
+.steps-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.steps-entry-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
 }
 
 .steps-entry-trail {
@@ -621,8 +636,22 @@ body[data-page="app"] .documents { min-height: 320px; }
 }
 
 .steps-entry-date {
+  display: inline-flex;
+  align-items: center;
   font-weight: 600;
   color: var(--ink);
+}
+
+.steps-entry-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(35, 75, 68, 0.09);
+  color: var(--anchor);
+  border: 1px solid rgba(35, 75, 68, 0.12);
+  font-family: var(--mono);
+  font-size: 0.72rem;
 }
 
 .steps-entry-source {
@@ -632,10 +661,16 @@ body[data-page="app"] .documents { min-height: 320px; }
 }
 
 .steps-entry-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   color: var(--anchor);
 }
 
