@@ -369,6 +369,25 @@
     unit: "pièce"
     portion_text: "1 pièce"
 
+- key: "lasagne_spinach_salmon"
+  label: "Lasagnes épinard saumon"
+  category: "mixed_dish"
+  categories:
+    - category: "starch"
+      weight: 50
+    - category: "vegetable"
+      weight: 20
+    - category: "protein"
+      weight: 25
+    - category: "fat"
+      weight: 5
+  icon: "🥘"
+  default_unit: "g"
+  default_portion:
+    quantity: 340
+    unit: "g"
+    portion_text: "assiette"
+
 - key: "maki_tuna_raw"
   label: "Maki thon cru"
   category: "mixed_dish"

@@ -3,7 +3,7 @@
   Referrer-Policy: no-referrer
   Content-Security-Policy: default-src 'self'; script-src 'self' https://identity.netlify.com; connect-src 'self' https://identity.netlify.com https:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://identity.netlify.com; frame-src https://identity.netlify.com https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests
   X-Frame-Options: DENY
-  Permissions-Policy: accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
+  Permissions-Policy: accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
 
 /
   Cache-Control: private, no-store, max-age=0

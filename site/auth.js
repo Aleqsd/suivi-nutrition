@@ -96,11 +96,36 @@ function getIdentityUser(fallbackUser = null) {
   return window.netlifyIdentity?.currentUser?.() || fallbackUser;
 }
 
+async function refreshIdentitySession() {
+  const identity = window.netlifyIdentity;
+  if (!identity) return getIdentityUser();
+  try {
+    if (typeof identity.refresh === "function") {
+      await identity.refresh();
+    } else if (typeof identity.gotrue?.refresh === "function") {
+      await identity.gotrue.refresh();
+    }
+  } catch (error) {
+    console.warn("Identity session refresh failed.", error);
+  }
+  return getIdentityUser();
+}
+
 async function refreshIdentityJwt(user, forceRefresh = false) {
   const activeUser = getIdentityUser(user);
-  if (!activeUser?.jwt) return activeUser;
-  await activeUser.jwt(forceRefresh);
-  return activeUser;
+  if (!activeUser?.jwt) {
+    return forceRefresh ? refreshIdentitySession() : activeUser;
+  }
+  try {
+    await activeUser.jwt(forceRefresh);
+    return getIdentityUser(activeUser) || activeUser;
+  } catch (error) {
+    if (!forceRefresh) throw error;
+    const refreshedUser = await refreshIdentitySession();
+    if (!refreshedUser?.jwt) throw error;
+    await refreshedUser.jwt(false);
+    return getIdentityUser(refreshedUser) || refreshedUser;
+  }
 }
 
 async function probeProtectedDataAccess() {
@@ -124,16 +149,19 @@ async function restoreIdentityUser(user = null, delays = SESSION_RESTORE_DELAYS_
   for (const delayMs of delays) {
     if (delayMs) await wait(delayMs);
 
-    const activeUser = getIdentityUser(user);
+    let activeUser = getIdentityUser(user);
+    if (!activeUser && delayMs === 0) {
+      activeUser = await refreshIdentitySession();
+    }
     if (!activeUser) continue;
 
     try {
-      await refreshIdentityJwt(activeUser, delayMs === 0);
+      activeUser = await refreshIdentityJwt(activeUser, delayMs === 0);
     } catch (error) {
       console.warn("Identity user restore failed.", error);
     }
 
-    const restoredUser = getIdentityUser(activeUser);
+    const restoredUser = getIdentityUser(activeUser) || activeUser;
     if (restoredUser) {
       return restoredUser;
     }
@@ -218,7 +246,7 @@ async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
     "info",
   );
 
-  const { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user);
+  const { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user, { extended: existingSession });
   if (accessReady) {
     resolveAuthReady({ authorized: true, user: resolvedUser || user });
     redirectToApp();
@@ -234,11 +262,11 @@ async function bootstrapAppAccess(user) {
   setAppAuthState("pending");
 
   let { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user);
-  if (!accessReady && resolvedUser) {
-    ({ accessReady, user: resolvedUser } = await ensureProtectedAppAccess(resolvedUser, { extended: true }));
+  if (!accessReady) {
+    ({ accessReady, user: resolvedUser } = await ensureProtectedAppAccess(resolvedUser || user, { extended: true }));
   }
   if (!resolvedUser) {
-    redirectToLogin("expired");
+    redirectToLogin("session_pending");
     return false;
   }
 
