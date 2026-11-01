@@ -1,0 +1,30 @@
+// Cloudflare Worker serving sante.zqsdev.com: the site/ assets behind Cloudflare Access, plus the upload-ticket API.
+// Deployed from the VPS by scripts/deploy_cloudflare_from_vps.sh, because site/app/data/dashboard.json is generated
+// there from the private data and never lives in Git. Do not connect Workers Builds to the GitHub repo: a build from
+// Git would publish the site without its data.
+// Secrets (npx wrangler secret put NAME): ALLOWED_EMAIL, INTAKE_SHARED_SECRET.
+// ACCESS_TEAM_DOMAIN and ACCESS_AUD come from the Zero Trust Access application; left empty, the Worker answers 503.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sante-zqsdev",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "account_id": "7b9ee223c6a171ffa7672f2c34bf7c16",
+  "assets": {
+    "directory": "./site",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "CAPTURE_BASE_URL": "https://capture.sante.zqsdev.com"
+  },
+  // Cutover: add the custom domain, then set workers_dev to false.
+  // "routes": [{ "pattern": "sante.zqsdev.com", "custom_domain": true }],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+}

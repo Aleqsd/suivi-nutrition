@@ -51,13 +51,15 @@ function redirectToLogin(reason = "expired") {
   window.location.replace(url.toString());
 }
 
+// Expired Cloudflare Access session: redirect to the Access login (opaque with redirect: "manual"),
+// or 401/403 from the Worker when the token is not the allowed one.
 function isUnauthorizedDashboardResponse(response) {
-  const finalUrl = new URL(response.url, window.location.origin);
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
   return (
-    finalUrl.pathname === "/"
-    || finalUrl.pathname === "/index.html"
-    || (response.redirected && !finalUrl.pathname.startsWith("/app/"))
+    response.type === "opaqueredirect"
+    || (response.status >= 300 && response.status < 400)
+    || response.status === 401
+    || response.status === 403
     || contentType.includes("text/html")
   );
 }
@@ -70,14 +72,20 @@ async function recoverProtectedSession() {
 }
 
 async function loadDashboard({ retryOnUnauthorized = true } = {}) {
-  const response = await fetch("./data/dashboard.json", {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-  if (isUnauthorizedDashboardResponse(response)) {
+  let response = null;
+  try {
+    response = await fetch("./data/dashboard.json", {
+      cache: "no-store",
+      credentials: "same-origin",
+      redirect: "manual",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    console.warn("Dashboard request failed.", error);
+  }
+  if (!response || isUnauthorizedDashboardResponse(response)) {
     if (retryOnUnauthorized && await recoverProtectedSession()) {
       return loadDashboard({ retryOnUnauthorized: false });
     }

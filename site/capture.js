@@ -435,17 +435,23 @@ async function getTicket(forceRefresh = false) {
     return state.ticket;
   }
 
-  const accessToken = await window.__atlasGetAccessToken?.(true);
-  if (!accessToken) throw new Error("Impossible de récupérer un jeton de session Netlify.");
-
-  const response = await fetch("/.netlify/functions/create-intake-ticket", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-    },
-  });
+  // The Cloudflare Access session cookie authenticates this same-origin call.
+  let response;
+  try {
+    response = await fetch("/api/create-intake-ticket", {
+      method: "POST",
+      credentials: "same-origin",
+      redirect: "manual",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    throw new Error("Session Cloudflare Access expirée. Recharge la page pour te reconnecter.");
+  }
+  if (response.type === "opaqueredirect") {
+    throw new Error("Session Cloudflare Access expirée. Recharge la page pour te reconnecter.");
+  }
   const payload = await parseApiResponse(response);
   if (!response.ok) throw new Error(payload.error || `Échec ticket upload (${response.status}).`);
 

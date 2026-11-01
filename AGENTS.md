@@ -176,7 +176,7 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
 - Le serveur principal du dashboard reste `scripts/dev_server.py`.
 - En local, il peut etre lance ponctuellement sur `127.0.0.1:43817` pour du debug ou de la verification.
 - Le dashboard statique lit ses donnees depuis `site/app/data/dashboard.json`.
-- Le site public doit desactiver le cache pour le HTML, le CSS, le JS et les donnees JSON du dashboard via `site/_headers`.
+- Le site public doit desactiver le cache pour le HTML, le CSS, le JS et les donnees JSON du dashboard; les en-tetes sont poses par `worker/index.js`.
 - Les chemins suivants doivent rester en `Cache-Control: private, no-store, max-age=0`:
   - `/`
   - `/index.html`
@@ -193,12 +193,12 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
   - code deploye depuis GitHub
   - donnees privees conservees uniquement sur le VPS
   - service `systemd` sur le VPS pour maintenir le dashboard
-  - publication distante du site statique vers Netlify
-- Chaque push sur `main` doit declencher un deploiement du code vers `/home/ubuntu/GitHub/suivi-nutrition` sur le VPS, puis une regeneration du site a partir des donnees du VPS, puis un `netlify deploy --prod` du dossier `site/`.
+  - publication distante du site statique vers le Worker Cloudflare `sante-zqsdev`
+- Chaque push sur `main` doit declencher un deploiement du code vers `/home/ubuntu/GitHub/suivi-nutrition` sur le VPS, puis une regeneration du site a partir des donnees du VPS, puis un `wrangler deploy` du dossier `site/` et du Worker.
 - Le workflow GitHub de reference est `.github/workflows/deploy-vps.yml`:
   - il synchronise le code par `rsync` avec `scripts/deploy_rsync.rules`
   - il appelle le pipeline distant commun `scripts/run_vps_deploy_pipeline.sh` en `DEPLOY_MODE=standard`
-  - il publie ensuite le dossier `site/` via `scripts/deploy_netlify_from_vps.sh`
+  - il publie ensuite le dossier `site/` via `scripts/deploy_cloudflare_from_vps.sh`
 - En deploiement manuel sans commit Git, preferer reproduire exactement ce flux avec une synchronisation `rsync` de l arbre de travail courant.
 - Le deploiement manuel fiable depuis Windows est `scripts/deploy_to_ovh.ps1`.
 - Ce script doit etre considere comme le chemin manuel de reference pour publier l etat local courant.
@@ -208,7 +208,7 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
   - `-Mode standard`: reprovision complete du VPS avant rebuild, publication et smoke tests
   - `-Mode fast`: saute la reprovision lourde du VPS et garde sync, rebuild, publication et smoke tests
 - `fast` est le mode a preferer pour les deploiements courants si le VPS est deja sain; revenir a `standard` apres un changement de dependances, d environnement serveur ou si `fast` echoue faute de virtualenv/dependances.
-- Le mode `fast` doit rester rapide, efficace et complet: sync code, sync donnees privees utiles, rebuild VPS, publication Netlify, smoke test public, smoke test VPS.
+- Le mode `fast` doit rester rapide, efficace et complet: sync code, sync donnees privees utiles, rebuild VPS, publication Cloudflare, smoke test public, smoke test VPS.
 - `scripts/deploy_to_ovh.ps1` doit:
   - synchroniser le code courant par `rsync` avec les memes exclusions que le workflow GitHub
   - synchroniser aussi les donnees privees locales utiles au dashboard, au minimum `data/journal/` et `data/profile/current.yaml`
@@ -218,30 +218,26 @@ Une entree de repas isolee n exige pas une reecriture manuelle du document, mais
 - Le deploiement manuel fiable depuis Windows suit donc les etapes suivantes:
   - synchroniser le code via `rsync --delete` avec le fichier partage `scripts/deploy_rsync.rules`
   - synchroniser les donnees privees utiles sans propager les suppressions locales
-  - executer `APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/run_vps_deploy_pipeline.sh` avec `NETLIFY_SITE_ID` et `NETLIFY_AUTH_TOKEN`
+  - executer `APP_DIR=/home/ubuntu/GitHub/suivi-nutrition bash scripts/run_vps_deploy_pipeline.sh` avec `CLOUDFLARE_API_TOKEN`
   - executer ensuite `python scripts/smoke_test_site.py public --base-url $PUBLIC_BASE_URL`
   - verifier enfin `python3 scripts/smoke_test_site.py vps --base-url http://127.0.0.1:43817/site` sur le VPS
 - Les changements de `data/reference/foods.yaml` y compris les icones et emojis sont deja inclus dans la synchro code et doivent donc etre republies a chaque execution de `scripts/deploy_to_ovh.ps1`.
 - Toute mecanique de deploiement doit preserver les donnees deja presentes sur le VPS. Ne pas remplacer ni supprimer les journaux, PDF, profils prives ou artefacts derives distants par un checkout Git vide.
 
-## Variante VPS via Netlify
+## Hebergement Cloudflare
 
-- Si l utilisateur veut exposer le dashboard en production, utiliser Netlify DNS et un site Netlify dedie plutot qu un tunnel Cloudflare.
-- La publication doit partir du VPS apres regeneration des donnees pour eviter de pousser les donnees privees vers GitHub.
-- Le site Netlify cible peut etre mis a jour via `scripts/deploy_netlify_from_vps.sh`.
-- Le site Netlify de production est identifie par `NETLIFY_SITE_ID`, et le domaine public par `PUBLIC_BASE_URL`.
-- La racine publique du site doit rester une porte d entree de connexion.
+- Le site de production `sante.zqsdev.com` est le Worker Cloudflare `sante-zqsdev` (`wrangler.jsonc`, `worker/index.js`) avec `site/` en assets statiques et `run_worker_first`.
+- La publication doit partir du VPS apres regeneration des donnees pour eviter de pousser les donnees privees vers GitHub: `scripts/deploy_cloudflare_from_vps.sh` (`npx wrangler deploy`). Ne pas brancher Workers Builds sur le repo.
+- L authentification est Cloudflare Access (Zero Trust), pas un widget dans le front:
+  - une application Access `self-hosted` couvre tout `sante.zqsdev.com`
+  - une politique `Allow` limitee a l adresse autorisee, connexion par code a usage unique (One-time PIN)
+  - le Worker verifie encore le jeton `Cf-Access-Jwt-Assertion` sur chaque route (signature, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, e-mail `ALLOWED_EMAIL`) et refuse tout le reste
+- Aucune route ne doit etre servie sans jeton Access valide, assets compris. Ne jamais ajouter de politique `Bypass` sur ce site.
 - Le dashboard et les donnees derivees doivent vivre sous `/app/`.
-- Les redirects Netlify doivent reserver `/app/*` au role `health`.
-- L acces cible doit etre configure en Netlify Identity:
-  - registration `Invite only`
-  - fournisseur externe `Google`
-  - seul l'adresse définie dans `ALLOWED_EMAIL` doit pouvoir etre invitée
-  - l utilisateur Identity invite doit recevoir le role `health`
-- La page publique `/` doit rester une page de connexion Netlify Identity.
-- Le dashboard authentifie doit vivre sous `/app/`.
-- Si le deploiement Netlify est lance manuellement depuis un shell qui n a pas deja les secrets exportes, injecter explicitement `NETLIFY_SITE_ID` et `NETLIFY_AUTH_TOKEN` dans la commande distante.
-- Si l authentification Netlify n est pas disponible dans l environnement courant, preparer le VPS et le pipeline GitHub, puis laisser seulement la configuration des secrets Netlify comme etape restante.
+- `POST /api/create-intake-ticket` signe les tickets d upload vers `CAPTURE_BASE_URL` (service du VPS); `/.netlify/functions/create-intake-ticket` reste un alias.
+- Secrets du Worker: `ALLOWED_EMAIL`, `INTAKE_SHARED_SECRET` (`npx wrangler secret put NAME`). Ne jamais les ecrire dans le repo.
+- Si le deploiement est lance manuellement depuis un shell qui n a pas deja les secrets exportes, injecter explicitement `CLOUDFLARE_API_TOKEN` dans la commande distante.
+- Apres un changement de `worker/`, lancer `node scripts/test_worker.mjs`.
 
 ## Regles de modelisation
 

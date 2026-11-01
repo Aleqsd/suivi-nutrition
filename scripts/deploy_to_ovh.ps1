@@ -2,7 +2,6 @@ param(
   [string]$RemoteHost = $env:OVH_HOST,
   [string]$RemoteDir = "/home/ubuntu/GitHub/suivi-nutrition",
   [string]$PublicBaseUrl = $env:PUBLIC_BASE_URL,
-  [string]$NetlifySiteId = $env:NETLIFY_SITE_ID,
   [ValidateSet("standard", "fast")]
   [string]$Mode = "standard",
   [switch]$SkipPrivateDataSync,
@@ -82,23 +81,12 @@ function Invoke-RsyncSync {
   }
 }
 
-function Get-NetlifyAuthToken {
-  if ($env:NETLIFY_AUTH_TOKEN) {
-    return $env:NETLIFY_AUTH_TOKEN
+function Get-CloudflareApiToken {
+  if ($env:CLOUDFLARE_API_TOKEN) {
+    return $env:CLOUDFLARE_API_TOKEN
   }
 
-  $configPath = Join-Path $env:APPDATA "netlify\Config\config.json"
-  if (Test-Path $configPath) {
-    $config = Get-Content $configPath | ConvertFrom-Json
-    foreach ($user in $config.users.PSObject.Properties) {
-      $token = $user.Value.auth.token
-      if ($token) {
-        return $token
-      }
-    }
-  }
-
-  throw "Missing NETLIFY_AUTH_TOKEN locally. Export it or login with netlify-cli first."
+  throw "Missing CLOUDFLARE_API_TOKEN locally. Export a token allowed to deploy the sante-zqsdev Worker."
 }
 
 function Convert-ToRsyncPath {
@@ -205,10 +193,6 @@ function Run-RemotePipeline {
   $deployMessage = Escape-SingleQuotedShellValue "Manual deploy from local workspace"
   $deployMode = Escape-SingleQuotedShellValue $Mode
 
-  if (-not $SkipPublish -and -not $NetlifySiteId) {
-    throw "Missing Netlify site id. Set -NetlifySiteId or NETLIFY_SITE_ID."
-  }
-
   $envParts = @(
     "APP_DIR='$RemoteDir'",
     "DEPLOY_MODE='$deployMode'",
@@ -217,11 +201,9 @@ function Run-RemotePipeline {
   )
 
   if (-not $SkipPublish) {
-    $netlifyAuthToken = Escape-SingleQuotedShellValue (Get-NetlifyAuthToken)
-    $netlifySiteId = Escape-SingleQuotedShellValue $NetlifySiteId
+    $cloudflareApiToken = Escape-SingleQuotedShellValue (Get-CloudflareApiToken)
     $envParts += @(
-      "NETLIFY_SITE_ID='$netlifySiteId'",
-      "NETLIFY_AUTH_TOKEN='$netlifyAuthToken'"
+      "CLOUDFLARE_API_TOKEN='$cloudflareApiToken'"
     )
   }
 

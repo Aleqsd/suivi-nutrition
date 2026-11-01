@@ -5,9 +5,12 @@ import json
 import re
 import sys
 from http.client import HTTPResponse
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+
+USER_AGENT = "suivi-nutrition-smoke/1"
 
 
 class NoRedirectHandler(HTTPRedirectHandler):
@@ -22,6 +25,7 @@ def open_response(url: str, *, method: str = "GET", follow_redirects: bool = Tru
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
             "Accept": "application/json, text/html;q=0.9, */*;q=0.8",
+            "User-Agent": USER_AGENT,
         },
         method=method,
     )
@@ -64,62 +68,55 @@ def assert_header_contains(headers: dict[str, str], name: str, needle: str, *, c
         raise AssertionError(f"Missing `{needle}` in header `{name}` for {context}: {value!r}")
 
 
-def assert_redirects_to_root(url: str, *, context: str) -> None:
-    status, _, headers, _ = open_response(url, follow_redirects=False)
-    if status not in {301, 302}:
-        raise AssertionError(f"Expected redirect for {context}, got HTTP {status}")
-    location = headers.get("location", "")
-    if location != "/":
-        raise AssertionError(f"Expected redirect to `/` for {context}, got {location!r}")
+ANONYMOUS_PATHS = [
+    ("GET", ""),
+    ("GET", "index.html"),
+    ("GET", "app/"),
+    ("GET", "app/index.html"),
+    ("GET", "app/capture/"),
+    ("GET", "app/data/dashboard.json"),
+    ("GET", "manifest.webmanifest"),
+    ("GET", "sw.js"),
+    ("GET", "auth.js"),
+    ("GET", "icon-192.png"),
+    ("GET", "missing-page"),
+    ("POST", "api/create-intake-ticket"),
+    ("POST", ".netlify/functions/create-intake-ticket"),
+]
 
 
-def assert_html_ok(url: str, *, context: str) -> tuple[dict[str, str], str]:
-    status, _, headers, body = open_response(url)
-    if status != 200:
-        raise AssertionError(f"Expected HTTP 200 for {context}, got HTTP {status}")
-    assert_header_contains(headers, "content-type", "text/html", context=context)
-    return headers, body
+def open_status(url: str, *, method: str = "GET") -> tuple[int, dict[str, str]]:
+    # Cloudflare refuses the default Python-urllib user agent (error 1010).
+    headers = {"Cache-Control": "no-cache", "Accept": "*/*", "User-Agent": USER_AGENT}
+    request = Request(url, headers=headers, method=method, data=b"" if method == "POST" else None)
+    try:
+        with build_opener(NoRedirectHandler()).open(request, timeout=30) as response:
+            return response.status, {key.lower(): value for key, value in response.headers.items()}
+    except HTTPError as error:
+        return error.code, {key.lower(): value for key, value in error.headers.items()}
+    except URLError as error:
+        raise RuntimeError(f"Unable to reach {url}: {error.reason}") from error
 
 
 def run_public(base_url: str) -> None:
+    """Anonymous visitor: every route must stop at Cloudflare Access (redirect to *.cloudflareaccess.com)
+    or at the Worker check (401/403, or 503 when Access is not configured). Nothing may answer 2xx."""
     root_url = base_url.rstrip("/") + "/"
-    _, _, root_headers, html = open_response(root_url)
-    assert_contains(html, "Continuer avec Google", context="public login page")
-    assert_contains(html, "auth.js?v=", context="public login page")
-    assert_contains(html, "styles.css?v=", context="public login page")
-    assert_header_contains(root_headers, "content-security-policy", "frame-ancestors 'none'", context="public login page")
-    assert_header_contains(root_headers, "x-frame-options", "DENY", context="public login page")
-    assert_header_contains(root_headers, "permissions-policy", "camera=()", context="public login page")
-    asset_matches = re.findall(r"""(?:href|src)=["']([^"']+\?(?:v|version)=[^"']+)["']""", html)
-    if not asset_matches:
-        raise AssertionError("Missing versioned assets on public login page")
-    for asset in asset_matches:
-        fetch_text(urljoin(root_url, asset))
-
-    _, app_html = assert_html_ok(urljoin(root_url, "app/"), context="anonymous /app/ shell")
-    assert_contains(app_html, "dashboard-freshness", context="anonymous /app/ shell")
-    assert_contains(app_html, "app.js?v=", context="anonymous /app/ shell")
-    _, app_index_html = assert_html_ok(urljoin(root_url, "app/index.html"), context="anonymous /app/index.html shell")
-    assert_contains(app_index_html, "dashboard-freshness", context="anonymous /app/index.html shell")
-    _, capture_html = assert_html_ok(urljoin(root_url, "app/capture/"), context="anonymous /app/capture/ shell")
-    assert_contains(capture_html, "Ajouter un repas depuis une photo", context="anonymous /app/capture/ shell")
-    manifest = fetch_json(urljoin(root_url, "manifest.webmanifest"))
-    if manifest.get("share_target", {}).get("action") != "/app/share-target/":
-        raise AssertionError("PWA share target must point to /app/share-target/.")
-    assert_redirects_to_root(urljoin(root_url, "app/data/dashboard.json"), context="anonymous dashboard JSON")
-
-    identity_settings = fetch_json(urljoin(root_url, ".netlify/identity/settings"))
-    external = identity_settings.get("external") or {}
-    if not external.get("google"):
-        raise AssertionError("Netlify Identity must keep Google enabled.")
-    if identity_settings.get("disable_signup"):
-        print("[smoke] Netlify Identity signup mode: invite only.")
-    else:
-        print("[smoke] WARN: Netlify Identity signup is open; runtime signup webhook must stay restrictive.")
-    if external.get("email"):
-        print("[smoke] WARN: Netlify Identity still exposes email auth in settings; runtime policy must block it.")
-
-    print(f"[smoke] Public page OK: {base_url}")
+    for method, path in ANONYMOUS_PATHS:
+        url = urljoin(root_url, path)
+        status, headers = open_status(url, method=method)
+        location = headers.get("location", "")
+        if status in {301, 302, 303, 307, 308}:
+            host = urlsplit(urljoin(url, location)).hostname or ""
+            if not host.endswith(".cloudflareaccess.com"):
+                raise AssertionError(f"{method} {url}: redirect outside Cloudflare Access ({location!r})")
+        elif status not in {401, 403, 503}:
+            raise AssertionError(f"{method} {url}: anonymous request answered HTTP {status}")
+        if status in {401, 403, 503}:
+            assert_header_contains(headers, "cache-control", "no-store", context=f"{method} {url}")
+            assert_header_contains(headers, "x-frame-options", "DENY", context=f"{method} {url}")
+        print(f"[smoke] {method} /{path}: {status} {location}".rstrip())
+    print(f"[smoke] Public site closed to anonymous visitors: {base_url}")
 
 
 def run_vps(base_url: str) -> None:
