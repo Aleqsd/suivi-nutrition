@@ -11,8 +11,8 @@
 7. Verifier que `data/profile/health-reference.md` reflete bien les changements globaux importants
 8. Si tu utilises le dashboard local, verifier aussi `site/app/data/dashboard.json`
 9. Si tu veux un mode local ponctuel toujours a jour, lancer `python scripts/dev_server.py --host 127.0.0.1 --port 43817`
-10. Si le repo est pousse sur `main`, le deploiement GitHub Actions synchronisera le code vers le VPS via `rsync`, executera le pipeline distant commun, puis publiera la version statique vers Netlify
-11. En production Netlify, la racine `/` doit rester une page de connexion et la zone `/app/` doit etre reservee au role `health`
+10. Si le repo est pousse sur `main`, le deploiement GitHub Actions synchronisera le code vers le VPS via `rsync`, executera le pipeline distant commun, puis publiera la version statique vers le Worker Cloudflare `sante-zqsdev`
+11. En production, tout `sante.zqsdev.com` est derriere Cloudflare Access, et le Worker refuse toute requete sans jeton Access valide
 12. Pour publier l etat local courant avec les donnees privees, utiliser `powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1`
 13. Le script accepte 2 modes:
 14. `-Mode standard` pour une reprovision VPS complete avant rebuild, publication et smoke tests

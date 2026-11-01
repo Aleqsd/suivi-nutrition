@@ -113,12 +113,11 @@ Ce script regenere aussi `data/profile/health-reference.md`.
   - `INTAKE_SHARED_SECRET`
   - `OPENAI_API_KEY`
   - `OPENAI_MEAL_VISION_MODEL`
-  - `NETLIFY_SITE_ID`
-  - `NETLIFY_AUTH_TOKEN`
+  - `CLOUDFLARE_API_TOKEN` (publication du Worker apres une capture)
 - Variables optionnelles:
   - `INTAKE_MAX_UPLOAD_BYTES`
   - `INTAKE_TICKET_TTL_SECONDS`
-  - `INTAKE_SKIP_PUBLISH=1` pour debug sans deploy Netlify
+  - `INTAKE_SKIP_PUBLISH=1` pour debug sans publication Cloudflare
 - Le proxy HTTPS du sous-domaine capture peut etre provisionne avec `bash scripts/provision_capture_proxy.sh`
 
 ## Site en local a la demande
@@ -146,23 +145,24 @@ Ce mode:
 - recharge automatiquement le dashboard dans le navigateur
 - expose un statut local sur `http://127.0.0.1:43817/__status`
 
-## Hebergement VPS + Netlify
+## Hebergement VPS + Cloudflare
 
-- le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard regenere sur le VPS puis publie vers Netlify
-- le site Netlify dedie est configuré côté pipeline (`NETLIFY_SITE_ID`)
+- le site `sante.zqsdev.com` est un Worker Cloudflare `sante-zqsdev` (`wrangler.jsonc`, `worker/`) qui sert `site/` en assets statiques
+- tout le site (pages, assets, donnees, API) est derriere Cloudflare Access: connexion par code a usage unique envoye par e-mail, politique limitee a l adresse autorisee
+- le Worker verifie en plus, sur chaque requete, le jeton Access (`Cf-Access-Jwt-Assertion`: signature, `ACCESS_AUD`, equipe `ACCESS_TEAM_DOMAIN`, e-mail `ALLOWED_EMAIL`); sans jeton valide il repond 403, sans configuration 503
+- `POST /api/create-intake-ticket` (ancien chemin `/.netlify/functions/create-intake-ticket` garde en alias) signe le ticket d upload pour `CAPTURE_BASE_URL`, au meme format qu avant
+- les en-tetes (cache `no-store`, CSP, `X-Frame-Options`, `noindex`) sont poses par `worker/index.js`
+- le mode cible est: code sur GitHub, donnees privees conservees sur le VPS, dashboard regenere sur le VPS puis publie par `wrangler deploy` depuis le VPS
+- ne pas brancher Workers Builds sur le repo: un build depuis Git publierait le site sans `dashboard.json`
 - le domaine public cible est `PUBLIC_BASE_URL`
-- chaque push sur `main` declenche une synchronisation `rsync` vers `ovh`, l execution du pipeline distant commun, puis une publication Netlify
-- la page publique `/` sert uniquement de porte d entree de connexion
+- chaque push sur `main` declenche une synchronisation `rsync` vers `ovh`, l execution du pipeline distant commun, puis une publication Cloudflare
+- la page `/` renvoie vers `/app/` une fois la session Access verifiee; le bouton de deconnexion ouvre `/cdn-cgi/access/logout`
 - le dashboard et les donnees structurees sont servis sous `/app/`
-- le contenu sensible doit etre protege par Netlify Identity en `Invite only`, fournisseur Google, avec un role `health`
-- le workflow GitHub attend les secrets:
-  - `OVH_SSH_KEY`
-  - `VPS_HOST` (optionnel, fallback: `ovh`/IP historique dans la config)
-  - `NETLIFY_AUTH_TOKEN`
-  - `NETLIFY_SITE_ID`
-  - `PUBLIC_BASE_URL`
-  - `ALLOWED_EMAIL`
-- la gestion d'autorisation Netlify se base sur `ALLOWED_EMAIL` (et `ALLOWED_PROVIDER=google` par défaut)
+- secrets du Worker (`npx wrangler secret put NAME`): `ALLOWED_EMAIL`, `INTAKE_SHARED_SECRET`
+- variables du Worker dans `wrangler.jsonc`: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` (application Access), `CAPTURE_BASE_URL`
+- le workflow GitHub attend le secret `OVH_SSH_KEY`, le secret `CLOUDFLARE_API_TOKEN` (droits `Workers Scripts: Edit` sur le compte, `Workers Routes: Edit` sur `zqsdev.com`) et les variables `VPS_HOST`, `PUBLIC_BASE_URL`
+- le VPS a besoin de Node.js 22 ou plus pour `wrangler` 4
+- tests du Worker: `node scripts/test_worker.mjs`
 - deploiement manuel de secours depuis Windows:
 
 ```powershell
@@ -183,14 +183,14 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy_to_ovh.ps1 -Mode fast
 - ce deploiement manuel synchronise le code via `rsync`, puis les donnees privees utiles au dashboard sans propager les suppressions locales
 - les donnees deja presentes sur le VPS sont conservees
 - ce deploiement appelle le pipeline distant `scripts/run_vps_deploy_pipeline.sh`
-- la publication Netlify se fait ensuite via `scripts/deploy_netlify_from_vps.sh`
+- la publication Cloudflare se fait ensuite via `scripts/deploy_cloudflare_from_vps.sh`
 - le script lance enfin un smoke test public et un smoke test du dashboard servi par le VPS
 
 ## Donnees sensibles
 
 - Ce depot est pense pour un usage prive et mono-utilisateur
 - En cas de synchronisation distante, chiffrer le depot ou au minimum les artefacts les plus sensibles
-- Un site Netlify expose les donnees publiees au contenu servi. Pour ce repo, ne publier les donnees sensibles que sous `/app/` avec les redirects de role et Netlify Identity actifs.
+- Le Worker publie `site/app/data/dashboard.json` dans les assets Cloudflare. Ne publier que si l application Cloudflare Access couvre tout `sante.zqsdev.com` et que `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN` et `ALLOWED_EMAIL` sont configures.
 - Les PDF, images ou comptes rendus medicaux restent des sources annexes: la source analytique doit rester structuree
 
 ## Fichiers de depart

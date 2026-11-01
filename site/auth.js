@@ -1,35 +1,22 @@
+// Cloudflare Access authenticates the visitor before any page of this site is served.
+// This script only checks that the protected data answers, and sends an expired session back through Access.
 const page = document.body.dataset.page || "";
 const statusNode = document.getElementById("auth-status");
 const loginButton = document.getElementById("auth-login");
 const logoutButton = document.getElementById("auth-logout");
 const PROTECTED_DATA_PATH = "/app/data/dashboard.json";
 const PROTECTED_PAGES = new Set(["app", "capture"]);
+const ACCESS_LOGOUT_PATH = "/cdn-cgi/access/logout";
+const PROTECTED_ACCESS_RETRY_DELAYS_MS = [0, 500, 1500];
+const SESSION_RECOVERY_DELAYS_MS = [0, 500, 1500, 3000, 5000];
 const authReadyState = createDeferred();
-const SESSION_RESTORE_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
-const PROTECTED_ACCESS_RETRY_DELAYS_MS = [0, 250, 750, 1500, 2500, 4000];
-const SESSION_RECOVERY_DELAYS_MS = [0, 500, 1500, 3000, 5000, 8000, 12000];
 window.__atlasAuthReady = authReadyState.promise;
 
 const AUTH_STATUS_MESSAGES = {
-  unauthorized: "Le compte connecté n'a pas le rôle health. Reconnecte-toi avec l'adresse Google invitée.",
-  expired: "La session a expiré ou l'accès protégé n'est plus valide. Reconnecte-toi pour continuer.",
-  identity_unavailable: "La brique de connexion Netlify Identity n'a pas pu être chargée.",
-  session_pending: "La session est créée, mais l'accès protégé n'est pas encore prêt. Réessaie dans quelques secondes.",
+  unauthorized: "Ce compte n'est pas autorisé. Reconnecte-toi avec l'adresse autorisée.",
+  expired: "La session Cloudflare Access a expiré. Rouvre le tableau de bord pour te reconnecter.",
+  session_pending: "Les données protégées ne répondent pas encore. Réessaie dans quelques secondes.",
 };
-
-function parseHashParams(hashValue = window.location.hash || "") {
-  const hash = String(hashValue || "").replace(/^#/, "");
-  return new URLSearchParams(hash);
-}
-
-function buildIdentityHashErrorMessage() {
-  const params = parseHashParams();
-  const error = params.get("error");
-  const description = params.get("error_description");
-  if (!error && !description) return "";
-  if (description) return `Erreur Netlify Identity: ${description}`;
-  return `Erreur Netlify Identity: ${error}`;
-}
 
 function createDeferred() {
   let settled = false;
@@ -41,14 +28,7 @@ function createDeferred() {
       resolve(value);
     };
   });
-  return {
-    promise,
-    resolve: resolvePromise,
-  };
-}
-
-function resolveAuthReady(result) {
-  authReadyState.resolve(result);
+  return { promise, resolve: resolvePromise };
 }
 
 function setAppAuthState(state) {
@@ -68,13 +48,8 @@ function setButtonBusy(isBusy) {
   loginButton.dataset.busy = isBusy ? "true" : "false";
 }
 
-function redirectToApp() {
-  resolveAuthReady({ authorized: true, user: getIdentityUser() });
-  window.location.replace("/app/");
-}
-
 function redirectToLogin(reason = "") {
-  resolveAuthReady({ authorized: false, reason });
+  authReadyState.resolve({ authorized: false, reason });
   const url = new URL("/", window.location.origin);
   if (reason) url.searchParams.set("auth", reason);
   window.location.replace(url.toString());
@@ -92,315 +67,108 @@ function wait(delayMs) {
   });
 }
 
-function getIdentityUser(fallbackUser = null) {
-  return window.netlifyIdentity?.currentUser?.() || fallbackUser;
-}
-
-async function refreshIdentitySession() {
-  const identity = window.netlifyIdentity;
-  if (!identity) return getIdentityUser();
-  try {
-    if (typeof identity.refresh === "function") {
-      await identity.refresh();
-    } else if (typeof identity.gotrue?.refresh === "function") {
-      await identity.gotrue.refresh();
-    }
-  } catch (error) {
-    console.warn("Identity session refresh failed.", error);
-  }
-  return getIdentityUser();
-}
-
-async function refreshIdentityJwt(user, forceRefresh = false) {
-  const activeUser = getIdentityUser(user);
-  if (!activeUser?.jwt) {
-    return forceRefresh ? refreshIdentitySession() : activeUser;
-  }
-  try {
-    await activeUser.jwt(forceRefresh);
-    return getIdentityUser(activeUser) || activeUser;
-  } catch (error) {
-    if (!forceRefresh) throw error;
-    const refreshedUser = await refreshIdentitySession();
-    if (!refreshedUser?.jwt) throw error;
-    await refreshedUser.jwt(false);
-    return getIdentityUser(refreshedUser) || refreshedUser;
-  }
-}
-
+// An expired Access session answers with a redirect to the Access login page (opaque with redirect: "manual")
+// or a network error; the Worker answers 403 to a token that is not the allowed one.
 async function probeProtectedDataAccess() {
-  const response = await fetch(buildNoStoreUrl(PROTECTED_DATA_PATH), {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-  const finalUrl = new URL(response.url, window.location.origin);
+  let response;
+  try {
+    response = await fetch(buildNoStoreUrl(PROTECTED_DATA_PATH), {
+      cache: "no-store",
+      credentials: "same-origin",
+      redirect: "manual",
+      headers: { Accept: "application/json" },
+    });
+  } catch (error) {
+    return { authorized: false, reason: "expired" };
+  }
+  if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
+    return { authorized: false, reason: "expired" };
+  }
+  if (response.status === 401 || response.status === 403) return { authorized: false, reason: "unauthorized" };
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
-  return {
-    authorized: response.ok && finalUrl.pathname.startsWith("/app/") && contentType.includes("application/json"),
-    finalPath: finalUrl.pathname,
-    contentType,
-  };
+  if (response.ok && contentType.includes("application/json")) return { authorized: true, reason: "" };
+  return { authorized: false, reason: "session_pending" };
 }
 
-async function restoreIdentityUser(user = null, delays = SESSION_RESTORE_DELAYS_MS) {
+async function ensureProtectedAppAccess({ extended = false } = {}) {
+  const delays = extended ? SESSION_RECOVERY_DELAYS_MS : PROTECTED_ACCESS_RETRY_DELAYS_MS;
+  let reason = "session_pending";
   for (const delayMs of delays) {
     if (delayMs) await wait(delayMs);
-
-    let activeUser = getIdentityUser(user);
-    if (!activeUser && delayMs === 0) {
-      activeUser = await refreshIdentitySession();
-    }
-    if (!activeUser) continue;
-
-    try {
-      activeUser = await refreshIdentityJwt(activeUser, delayMs === 0);
-    } catch (error) {
-      console.warn("Identity user restore failed.", error);
-    }
-
-    const restoredUser = getIdentityUser(activeUser) || activeUser;
-    if (restoredUser) {
-      return restoredUser;
-    }
+    const probe = await probeProtectedDataAccess();
+    if (probe.authorized) return { accessReady: true, reason: "" };
+    reason = probe.reason;
+    if (reason !== "session_pending") break;
   }
-
-  return null;
-}
-
-async function waitForProtectedAppAccess(
-  user,
-  {
-    restoreDelays = SESSION_RESTORE_DELAYS_MS,
-    accessDelays = PROTECTED_ACCESS_RETRY_DELAYS_MS,
-  } = {},
-) {
-  const activeUser = await restoreIdentityUser(user, restoreDelays);
-  if (!activeUser) {
-    return {
-      accessReady: false,
-      user: null,
-    };
-  }
-
-  for (const delayMs of accessDelays) {
-    if (delayMs) await wait(delayMs);
-
-    try {
-      await refreshIdentityJwt(activeUser, delayMs === 0);
-      const probe = await probeProtectedDataAccess();
-      if (probe.authorized) {
-        return {
-          accessReady: true,
-          user: getIdentityUser(activeUser) || activeUser,
-        };
-      }
-    } catch (error) {
-      console.warn("Protected app probe failed.", error);
-    }
-  }
-
-  return {
-    accessReady: false,
-    user: getIdentityUser(activeUser) || activeUser,
-  };
-}
-
-async function ensureProtectedAppAccess(
-  user = null,
-  {
-    extended = false,
-  } = {},
-) {
-  const delays = extended ? SESSION_RECOVERY_DELAYS_MS : PROTECTED_ACCESS_RETRY_DELAYS_MS;
-  const result = await waitForProtectedAppAccess(user, {
-    restoreDelays: delays,
-    accessDelays: delays,
-  });
-  return {
-    ...result,
-    reason: result.user ? "session_pending" : "expired",
-  };
-}
-
-async function redirectToAppWhenReady(user, { existingSession = false } = {}) {
-  if (page !== "login") {
-    setAppAuthState("pending");
-    const { accessReady, user: resolvedUser } = await waitForProtectedAppAccess(user);
-    if (accessReady) {
-      setAppAuthState("ready");
-      resolveAuthReady({ authorized: true, user: resolvedUser || user });
-      return true;
-    }
-    redirectToLogin("session_pending");
-    return false;
-  }
-
-  setButtonBusy(true);
-  setStatus(
-    existingSession
-      ? "Session détectée. Vérification de l'accès protégé…"
-      : "Connexion établie. Vérification de l'accès protégé…",
-    "info",
-  );
-
-  const { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user, { extended: existingSession });
-  if (accessReady) {
-    resolveAuthReady({ authorized: true, user: resolvedUser || user });
-    redirectToApp();
-    return true;
-  }
-
-  setButtonBusy(false);
-  setStatus(AUTH_STATUS_MESSAGES.session_pending, "error");
-  return false;
-}
-
-async function bootstrapAppAccess(user) {
-  setAppAuthState("pending");
-
-  let { accessReady, user: resolvedUser } = await ensureProtectedAppAccess(user);
-  if (!accessReady) {
-    ({ accessReady, user: resolvedUser } = await ensureProtectedAppAccess(resolvedUser || user, { extended: true }));
-  }
-  if (!resolvedUser) {
-    redirectToLogin("session_pending");
-    return false;
-  }
-
-  if (!accessReady) {
-    redirectToLogin("session_pending");
-    return false;
-  }
-
-  setAppAuthState("ready");
-  resolveAuthReady({ authorized: true, user: resolvedUser });
-  return true;
+  return { accessReady: false, reason };
 }
 
 window.__atlasEnsureProtectedAccess = async function atlasEnsureProtectedAccess(options = {}) {
-  return ensureProtectedAppAccess(options.user || null, options);
+  return ensureProtectedAppAccess(options);
 };
 
-function openGoogleLoginDirect() {
-  if (!window.netlifyIdentity) {
-    setStatus(AUTH_STATUS_MESSAGES.identity_unavailable, "error");
-    return;
-  }
-
-  const externalLoginUrl = window.netlifyIdentity.gotrue?.loginExternalUrl?.("google")
-    || `${window.location.origin}/.netlify/identity/authorize?provider=google`;
-  window.location.assign(externalLoginUrl);
-}
-
-function hasAuthTokenInUrl() {
-  const search = new URLSearchParams(window.location.search);
-  const hash = window.location.hash || "";
-  return (
-    search.has("confirmation_token")
-    || search.has("invite_token")
-    || search.has("recovery_token")
-    || hash.includes("access_token")
-  );
-}
-
 function showAuthStateFromUrl() {
-  const identityErrorMessage = buildIdentityHashErrorMessage();
-  if (identityErrorMessage) {
-    setStatus(identityErrorMessage, "error");
-    return;
-  }
-  const search = new URLSearchParams(window.location.search);
-  const authState = search.get("auth");
+  const authState = new URLSearchParams(window.location.search).get("auth");
   const message = AUTH_STATUS_MESSAGES[authState];
-  if (!message) return;
+  if (!message) return false;
   setStatus(message, authState === "session_pending" ? "info" : "error");
+  return true;
 }
 
-function initIdentity() {
-  showAuthStateFromUrl();
-  if (PROTECTED_PAGES.has(page)) setAppAuthState("pending");
-
-  if (!window.netlifyIdentity) {
-    setStatus(AUTH_STATUS_MESSAGES.identity_unavailable, "error");
-    if (PROTECTED_PAGES.has(page)) redirectToLogin("identity_unavailable");
+async function initLoginPage() {
+  // Reaching this page means Access already let the visitor in (again, after an expired session):
+  // go to the dashboard as soon as the protected data answers.
+  const shown = showAuthStateFromUrl();
+  if (new URLSearchParams(window.location.search).get("auth") === "unauthorized") return;
+  setButtonBusy(true);
+  if (!shown) setStatus("Session Cloudflare Access active. Ouverture du tableau de bord…", "info");
+  const { accessReady, reason } = await ensureProtectedAppAccess();
+  if (accessReady) {
+    window.location.replace("/app/");
     return;
   }
+  setButtonBusy(false);
+  setStatus(AUTH_STATUS_MESSAGES[reason] || AUTH_STATUS_MESSAGES.session_pending, "error");
+}
 
-  window.netlifyIdentity.on("init", async (user) => {
-    if (page === "login" && hasAuthTokenInUrl()) {
-      setButtonBusy(true);
-      window.netlifyIdentity.open();
-      return;
-    }
-
-    if (page === "login" && user) {
-      await redirectToAppWhenReady(user, { existingSession: true });
-      return;
-    }
-
-    if (PROTECTED_PAGES.has(page)) {
-      await bootstrapAppAccess(user);
-      return;
-    }
-
-    if (page === "login") setButtonBusy(false);
-  });
-
-  window.netlifyIdentity.on("login", async (user) => {
-    window.netlifyIdentity.close();
-    await redirectToAppWhenReady(user);
-  });
-
-  window.netlifyIdentity.on("logout", () => {
-    if (page === "app") redirectToLogin();
-  });
-
-  window.netlifyIdentity.on("error", (error) => {
-    setButtonBusy(false);
-    setStatus(error?.message || "Connexion impossible.", "error");
-    if (PROTECTED_PAGES.has(page)) {
-      console.error("Identity bootstrap failed.", error);
-      redirectToLogin("identity_unavailable");
-    }
-  });
-
-  window.netlifyIdentity.init();
+async function initProtectedPage() {
+  setAppAuthState("pending");
+  let result = await ensureProtectedAppAccess();
+  if (!result.accessReady && result.reason === "session_pending") {
+    result = await ensureProtectedAppAccess({ extended: true });
+  }
+  if (!result.accessReady) {
+    redirectToLogin(result.reason);
+    return;
+  }
+  setAppAuthState("ready");
+  authReadyState.resolve({ authorized: true });
 }
 
 if (loginButton) {
   loginButton.addEventListener("click", () => {
     setButtonBusy(true);
-    setStatus("Redirection vers Google…");
-    openGoogleLoginDirect();
+    // A top-level navigation lets Access show its login page when the session has expired.
+    window.location.assign("/app/");
   });
 }
 
 if (logoutButton) {
-  logoutButton.addEventListener("click", async () => {
-    if (!window.netlifyIdentity) {
-      redirectToLogin("identity_unavailable");
-      return;
-    }
-    try {
-      await window.netlifyIdentity.logout();
-    } catch (error) {
-      console.error("Logout failed.", error);
-      redirectToLogin("expired");
-    }
+  logoutButton.addEventListener("click", () => {
+    window.location.assign(ACCESS_LOGOUT_PATH);
   });
 }
 
-window.__atlasGetAccessToken = async function atlasGetAccessToken(forceRefresh = false) {
-  const user = getIdentityUser();
-  if (!user?.jwt) return "";
-  return user.jwt(forceRefresh);
-};
+function initAuth() {
+  if (PROTECTED_PAGES.has(page)) {
+    initProtectedPage();
+  } else if (page === "login") {
+    initLoginPage();
+  }
+}
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initIdentity, { once: true });
+  document.addEventListener("DOMContentLoaded", initAuth, { once: true });
 } else {
-  initIdentity();
+  initAuth();
 }

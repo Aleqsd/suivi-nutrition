@@ -989,14 +989,12 @@ def run_refresh_pipeline(*, skip_publish: bool = False) -> None:
             subprocess.run(command, cwd=ROOT, check=True)
         if skip_publish:
             return
-        netlify_site_id = str(os.getenv("NETLIFY_SITE_ID", "")).strip()
-        netlify_auth_token = str(os.getenv("NETLIFY_AUTH_TOKEN", "")).strip()
-        if not netlify_site_id or not netlify_auth_token:
-            raise RuntimeError("Missing NETLIFY_SITE_ID or NETLIFY_AUTH_TOKEN for publish.")
+        if not str(os.getenv("CLOUDFLARE_API_TOKEN", "")).strip():
+            raise RuntimeError("Missing CLOUDFLARE_API_TOKEN for publish.")
         env = os.environ.copy()
         env.setdefault("APP_DIR", str(ROOT))
         subprocess.run(
-            ["bash", str(ROOT / "scripts" / "deploy_netlify_from_vps.sh")],
+            ["bash", str(ROOT / "scripts" / "deploy_cloudflare_from_vps.sh")],
             cwd=ROOT,
             env=env,
             check=True,

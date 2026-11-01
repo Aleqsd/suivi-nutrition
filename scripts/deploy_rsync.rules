@@ -9,7 +9,7 @@
 - /.wrangler/
 - /.vscode/
 - /.idea/
-- /.netlify/
+- /node_modules/
 - /tmp/
 - *.log
 - /.env.capture
